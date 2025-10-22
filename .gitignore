@@ -1,0 +1,52 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+*.env
+.env
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints/
+
+# VS Code settings
+.vscode/
+.history/
+
+# Mac and system files
+.DS_Store
+Thumbs.db
+
+# Build and packaging
+build/
+dist/
+*.egg-info/
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+
+# Data files
+data/
+*.csv
+*.xlsx
+*.json
+
+# Credentials / keys
+*.key
+*.pem
+*.p12
+*.db
+*.sqlite3
+
+# Model weights / artifacts
+*.h5
+*.pt
+*.pkl
+*.joblib
