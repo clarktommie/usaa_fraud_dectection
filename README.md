@@ -26,7 +26,6 @@ The goal is to collect and analyze fraud-related articles from public sources su
 ---
 
 ### Next Steps
-🚧 Expand to additional sources (FTC, FBI)  
 🚧 Implement text analytics and keyword trend detection  
 🚧 Integrate embeddings and RAG for smarter article retrieval  
 🚧 Build an interactive Streamlit dashboard  
