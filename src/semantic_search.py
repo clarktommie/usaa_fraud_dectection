@@ -57,7 +57,7 @@ def semantic_search(query, year=None, keyword=None, top_k=20):
 
 if __name__ == "__main__":
     # Example queries
-    semantic_search("debit card fraud")
+    semantic_search("offshore payments", keyword="fraud")
     # semantic_search("fraud enforcement action", year=2024)
     # semantic_search("money laundering", keyword="AML")
     # semantic_search("financial scams", year=2022, keyword="bank")
