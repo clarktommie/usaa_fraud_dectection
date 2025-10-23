@@ -13,7 +13,7 @@
 ### Project Summary
 This repository contains work-in-progress Python scripts for the **USAA Fraud Detection Project**, part of DTSC 3602 at UNC Charlotte.  
 
-The goal is to collect and analyze fraud-related articles from public sources such as the **Federal Reserve Board**, **FTC**, and **FBI**, supporting USAA’s *State of Fraud* publication by identifying patterns and trends in scams and financial fraud.
+The goal is to collect and analyze fraud-related articles from public sources such as the **Federal Reserve Board** supporting USAA’s *State of Fraud* publication by identifying patterns and trends in scams and financial fraud.
 
 ---
 
