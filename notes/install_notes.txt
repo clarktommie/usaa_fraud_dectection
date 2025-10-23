@@ -3,3 +3,5 @@ most of the articles were in pdf format
     added pdfmier.six to try to combat this issue
 outter scrape needs to check indexes for each year so that it will not skip
 once scraped --> uv run python src/export_supabase_table.py to import csv file for exploration
+
+change your output path --> just copy path from your data folder and paste it
