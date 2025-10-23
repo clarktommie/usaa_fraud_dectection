@@ -1,3 +1,5 @@
 only 28 readable html articles were able to be read. 
 most of the articles were in pdf format
     added pdfmier.six to try to combat this issue
+outter scrape needs to check indexes for each year so that it will not skip
+once scraped --> uv run python src/export_supabase_table.py to import csv file for exploration

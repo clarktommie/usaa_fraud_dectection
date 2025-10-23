@@ -4,8 +4,7 @@ from datetime import datetime, UTC
 import requests
 from bs4 import BeautifulSoup
 from io import BytesIO
-from PyPDF2 import PdfReader   # ← added for PDF text extraction
-
+from PyPDF2 import PdfReader   # For PDF text extraction
 from supabase import create_client
 from dotenv import load_dotenv
 
@@ -57,14 +56,24 @@ def extract_article_text(url):
                 break
         author_text = author_tag.get_text(strip=True) if author_tag else None
 
-        main = soup.select_one(".col-xs-12.col-sm-8.col-md-8") or soup.select_one(".col-xs-12.col-sm-12.col-md-8")
+        # Look for the main press release section
+        main = (
+            soup.find("div", id="article") or
+            soup.select_one("div.col-xs-12.col-sm-8.col-md-8") or
+            soup.select_one("article")
+        )
         if not main:
             main = soup
 
-        paragraphs = [p.get_text(" ", strip=True) for p in main.find_all("p")]
-        if not paragraphs:
-            paragraphs = [div.get_text(" ", strip=True) for div in main.find_all("div") if div.get_text(strip=True)]
+        # Get all paragraphs under the main section
+        paragraphs = []
+        for tag in main.find_all("p", recursive=True):
+            text = tag.get_text(" ", strip=True)
+            if len(text.split()) > 5 and "For release at" not in text:
+                paragraphs.append(text)
+
         content = "\n\n".join(paragraphs)
+
 
         return {
             "content": content.strip(),
@@ -118,4 +127,3 @@ if __name__ == "__main__":
         time.sleep(1)  # polite delay between requests
 
     print("Inner scrape complete.")
-
