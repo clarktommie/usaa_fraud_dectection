@@ -5,3 +5,84 @@ outter scrape needs to check indexes for each year so that it will not skip
 once scraped --> uv run python src/export_supabase_table.py to import csv file for exploration
 
 change your output path --> just copy path from your data folder and paste it
+
+--------------------------------------------------------------------
+
+Step 1 — Prepare Supabase for semantic search (run in Supabase SQL Editor)
+
+Open your project → SQL → New query.
+
+Run this SQL to enable vectors and add a column for embeddings:
+
+-- Enable pgvector (run once per database)
+create extension if not exists vector;
+
+-- Add an embedding column to your CLEAN table (384 dims for all-MiniLM-L6-v2)
+alter table public.press_releases_clean
+add column if not exists embedding vector(384);
+
+-- Optional but recommended: index for faster similarity search
+create index if not exists press_releases_clean_embedding_idx
+on public.press_releases_clean
+using ivfflat (embedding vector_cosine_ops)
+with (lists = 100);
+
+
+Still in the SQL Editor, create a helper function to perform similarity search:
+
+create or replace function public.match_press_releases(
+  query_embedding vector(384),
+  match_threshold float,
+  match_count int
+)
+returns table (
+  id uuid,
+  title text,
+  url text,
+  content text,
+  similarity float
+)
+language sql stable as $$
+  select
+    pr.id,
+    pr.title,
+    pr.url,
+    pr.content,
+    1 - (pr.embedding <=> query_embedding) as similarity
+  from public.press_releases_clean pr
+  where pr.embedding is not null
+    and 1 - (pr.embedding <=> query_embedding) > match_threshold
+  order by similarity desc
+  limit match_count;
+$$;
+
+---------------------------------------------------------------
+
+uv add sentence-transformers tqdm
+
+
+create or replace function public.match_press_releases(
+  query_embedding vector(384),
+  match_threshold float,
+  match_count int
+)
+returns table (
+  id uuid,
+  title text,
+  url text,
+  content text,
+  similarity float
+)
+language sql stable as $$
+  select
+    pr.id,
+    pr.title,
+    pr.url,
+    pr.content,
+    1 - (pr.embedding <=> query_embedding) as similarity
+  from public.press_releases_clean pr
+  where pr.embedding is not null
+    and 1 - (pr.embedding <=> query_embedding) > match_threshold
+  order by similarity desc
+  limit match_count;
+$$;
