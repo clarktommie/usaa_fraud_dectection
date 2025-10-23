@@ -50,5 +50,4 @@ data/
 *.pt
 *.pkl
 *.joblib
-
 uv.lock
