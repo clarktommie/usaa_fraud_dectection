@@ -21,7 +21,8 @@ def search_section(default_query, year, keyword, top_k, threshold):
         clear_btn = st.button("Clear")
 
     if clear_btn:
-        st.experimental_rerun()
+        st.rerun()
+
 
     hits = []
 
