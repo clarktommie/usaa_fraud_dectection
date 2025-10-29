@@ -7,21 +7,25 @@ visual insights—such as fraud trend heatmaps, rolling trends, and word clouds�
 and allows users to download summarized PDF reports.
 """
 
-import re
-from collections import Counter
 import pandas as pd
-import matplotlib.pyplot as plt
-from wordcloud import WordCloud
-import plotly.express as px
 import streamlit as st
+from wordcloud import WordCloud
 
-from src.visualizations import plot_heatmap, plot_rolling_trend, plot_wordcloud, plot_network
+from src.visualizations import (
+    plot_keyword_momentum,
+    plot_trend_summary,
+    plot_thematic_wordcloud,
+    plot_keyword_network,
+    plot_top_terms,
+)
+
 from src.data_loader import fetch_articles
 from src.pdf_generator import generate_pdf
 from src.embedding_search import run_search, get_embedder
 from src.sidebar_controls import sidebar_controls
 from src.search_section import search_section
 from src.article_analysis import analyze_articles
+
 
 # -----------------
 # Initialization
@@ -46,12 +50,14 @@ embedder = get_embedder()
 st.markdown("### 🌐 Global Fraud Trends Overview")
 
 try:
-    plot_heatmap(all_articles, ["fraud", "scam", "AML",
-                                "laundering", "cyber", "identity", 
-                                "enforcement"])
-    plot_rolling_trend(all_articles)
-    plot_wordcloud(all_articles)
-    plot_network(all_articles)
+    fraud_keywords = ["fraud", "scam", "aml", "launder", "bribe", "cyber", "identity", "enforcement"]
+    plot_keyword_momentum(all_articles, fraud_keywords)
+    plot_trend_summary(all_articles)
+    
+    plot_top_terms(all_articles, top_n=15, focus_terms=fraud_keywords)
+
+    # plot_thematic_wordcloud(all_articles, fraud_keywords)
+    plot_keyword_network(all_articles)
 except Exception as e:
     st.warning(f"Could not load visualizations: {e}")
 
