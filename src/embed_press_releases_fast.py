@@ -7,19 +7,37 @@ from dotenv import load_dotenv
 from fastembed import TextEmbedding
 from tqdm import tqdm
 
-# --- Setup ---
+# ---------------------
+# Setup
+# ---------------------
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- Initialize model ---
-print("🧠 Loading FastEmbed model (BAAI/bge-small-en-v1.5)...")
-embedder = TextEmbedding("BAAI/bge-small-en-v1.5")
+# ---------------------
+# Model
+# ---------------------
+print("🧠 Loading FastEmbed model (BAAI/bge-large-en-v1.5)...")
+embedder = TextEmbedding("BAAI/bge-large-en-v1.5")
 
-# --- Parameters ---
-FETCH_SIZE = 1000
+# ---------------------
+# Parameters
+# ---------------------
+FETCH_SIZE = 500
 BATCH_SIZE = 100
+TARGET_TABLE = "press_releases_embed"
+
+# ---------------------
+# Helpers
+# ---------------------
+def clean_text(text: str) -> str:
+    """Preprocess text for embedding."""
+    if not text:
+        return ""
+    text = text.replace("\n", " ").replace("\r", " ")
+    text = " ".join(text.split())  # collapse spaces
+    return text.strip()
 
 def fetch_all_rows():
     print("📥 Fetching data from Supabase (paged)...")
@@ -28,20 +46,23 @@ def fetch_all_rows():
 
     while True:
         end = start + FETCH_SIZE - 1
-        response = (
-            supabase.table("press_releases_clean")
-            .select("id, title, content")
-            .order("id", desc=False)        # <-- ensures stable paging
-            .range(start, end)
-            .execute()
-        )
-
+        try:
+            response = (
+                supabase.table("press_releases_clean")
+                .select("id, title, content")
+                .order("id", desc=False)
+                .range(start, end)
+                .execute()
+            )
+        except Exception as e:
+            print(f"⚠️ Retry due to Supabase timeout at rows {start}–{end}: {e}")
+            time.sleep(3)
+            continue
 
         data = response.data or []
         all_data.extend(data)
         print(f"Fetched rows {start}–{end} (total so far: {len(all_data)})")
 
-        # Stop if fewer than FETCH_SIZE rows returned
         if len(data) < FETCH_SIZE:
             break
 
@@ -51,21 +72,63 @@ def fetch_all_rows():
     print(f"✅ Total fetched: {len(all_data)} rows.")
     return pd.DataFrame(all_data)
 
-# --- Main process ---
+
+
+def normalize(vectors):
+    """L2 normalize embeddings for cosine similarity."""
+    arr = np.array(vectors)
+    norms = np.linalg.norm(arr, axis=1, keepdims=True)
+    return arr / np.maximum(norms, 1e-12)
+
+
+def upload_batch(records):
+    """Upload to Supabase with retry logic."""
+    for attempt in range(2):
+        try:
+            supabase.table(TARGET_TABLE).upsert(records).execute()
+            return
+        except Exception as e:
+            print(f"⚠️ Upload failed (attempt {attempt + 1}): {e}")
+            time.sleep(2)
+    print("❌ Batch permanently failed after retries.")
+
+
+# ---------------------
+# Main Process
+# ---------------------
 df = fetch_all_rows()
 df = df.dropna(subset=["content"])
-print(f"Embedding {len(df)} valid rows...")
+print(f"🧾 Preparing {len(df)} valid rows for embedding...")
 
-# --- Embed and upload ---
-for i in tqdm(range(0, len(df), BATCH_SIZE)):
-    batch = df.iloc[i:i+BATCH_SIZE]
-    texts = batch["content"].tolist()
+# Combine title + content
+df["full_text"] = df.apply(
+    lambda x: clean_text(f"{x['title']} — {x['content']}" if x["title"] else x["content"]),
+    axis=1
+)
+
+# Batch embed
+for i in tqdm(range(0, len(df), BATCH_SIZE), desc="Embedding batches"):
+    batch = df.iloc[i : i + BATCH_SIZE]
     ids = batch["id"].tolist()
+    texts = batch["full_text"].tolist()
 
-    embeddings = list(embedder.embed(texts))
-    records = [{"id": ids[j], "embedding": embeddings[j].tolist()} for j in range(len(ids))]
+    try:
+        embeddings = list(embedder.embed(texts))
+        embeddings = normalize(embeddings)
+    except Exception as e:
+        print(f"⚠️ Embedding error on batch {i // BATCH_SIZE}: {e}")
+        continue
 
-    supabase.table("press_releases_clean").upsert(records).execute()
-    time.sleep(0.5)
+    records = [
+        {
+            "id": ids[j],
+            "embedding": embeddings[j].tolist(),
+            "title": batch.iloc[j]["title"],
+        }
+        for j in range(len(ids))
+    ]
 
-print("✅ All embeddings uploaded successfully.")
+    upload_batch(records)
+    time.sleep(0.3)
+
+print(f"✅ All {len(df)} embeddings created and uploaded to '{TARGET_TABLE}'.")
