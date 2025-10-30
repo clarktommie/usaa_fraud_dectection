@@ -44,7 +44,7 @@ all_articles = fetch_articles()
 # -----------------
 # Pattern Detection Section
 # -----------------
-st.markdown("### ⚠️ Emerging Fraud Patterns (Last 6 Weeks)")
+st.markdown("### ⚠️ Emerging Fraud Patterns")
 patterns = detect_patterns(all_articles)
 
 col1, col2 = st.columns(2)

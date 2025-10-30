@@ -4,95 +4,113 @@ from datetime import datetime, UTC
 import requests
 from bs4 import BeautifulSoup
 from io import BytesIO
-from PyPDF2 import PdfReader   # For PDF text extraction
+from PyPDF2 import PdfReader
 from supabase import create_client
 from dotenv import load_dotenv
 
-# --- Setup ---
+
+# ---------------------------
+# Setup
+# ---------------------------
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-BASE_URL = "https://www.federalreserve.gov"
+BASE_URL = "https://bpi.com"
 
-# --- Helper to extract text, date, and author ---
+
+# ---------------------------
+# Extract text, date, and author
+# ---------------------------
 def extract_article_text(url):
     headers = {"User-Agent": "Tommie-Clark-Fraud-Scraper/1.0 (+your-email@example.com)"}
     try:
         resp = requests.get(url, headers=headers, timeout=20)
         resp.raise_for_status()
 
-        # --- Handle PDFs ---
+        # --- Handle PDF files ---
         if "application/pdf" in resp.headers.get("Content-Type", "") or url.endswith(".pdf"):
-            print(f"Extracting PDF content: {url}")
+            print(f"📄 Extracting PDF content: {url}")
             try:
                 pdf_reader = PdfReader(BytesIO(resp.content))
-                text = ""
-                for page in pdf_reader.pages:
-                    text += page.extract_text() or ""
+                text = "".join(page.extract_text() or "" for page in pdf_reader.pages)
                 if not text.strip():
-                    print(f"No text found in PDF: {url}")
+                    print(f"⚠️ No text found in PDF: {url}")
                     return None
-                return {
-                    "content": text.strip(),
-                    "date": None,
-                    "author": None
-                }
+                return {"content": text.strip(), "date": None, "author": None}
             except Exception as e:
-                print(f"Error extracting PDF text: {e}")
+                print(f"⚠️ Error reading PDF: {e}")
                 return None
 
-        # --- Handle HTML pages ---
+        # --- Parse HTML page ---
         soup = BeautifulSoup(resp.text, "html.parser")
 
-        date_tag = soup.select_one(".article__time, .release-date, .pubdate, time")
-        date_text = date_tag.get_text(strip=True) if date_tag else None
-
-        author_tag = None
-        for p in soup.find_all("p"):
-            if any(k in p.text for k in ["Contact", "Public Affairs", "Media", "Press"]):
-                author_tag = p
-                break
-        author_text = author_tag.get_text(strip=True) if author_tag else None
-
-        # Look for the main press release section
-        main = (
-            soup.find("div", id="article") or
-            soup.select_one("div.col-xs-12.col-sm-8.col-md-8") or
-            soup.select_one("article")
+        # Date (BPI posts often have <time> or meta property)
+        date_tag = (
+            soup.select_one("time") or
+            soup.find("meta", {"property": "article:published_time"})
         )
-        if not main:
-            main = soup
+        date_text = None
+        if date_tag:
+            date_text = (
+                date_tag.get("datetime")
+                or date_tag.get("content")
+                or date_tag.get_text(strip=True)
+            )
 
-        # Get all paragraphs under the main section
+        # Author (meta tag or under a byline)
+        author_tag = (
+            soup.select_one(".author-name, .byline, meta[name='author']")
+            or soup.find("meta", {"name": "author"})
+        )
+        author_text = (
+            author_tag.get("content") if author_tag and author_tag.has_attr("content")
+            else author_tag.get_text(strip=True) if author_tag
+            else None
+        )
+
+        # Main content (div.entry-content or article tag)
+        main = (
+            soup.select_one("div.entry-content")
+            or soup.select_one("article")
+            or soup.find("main")
+            or soup
+        )
+
         paragraphs = []
-        for tag in main.find_all("p", recursive=True):
-            text = tag.get_text(" ", strip=True)
-            if len(text.split()) > 5 and "For release at" not in text:
+        for p in main.find_all("p", recursive=True):
+            text = p.get_text(" ", strip=True)
+            if len(text.split()) > 5:
                 paragraphs.append(text)
 
-        content = "\n\n".join(paragraphs)
-
+        content = "\n\n".join(paragraphs).strip()
+        if not content:
+            print(f"⚠️ No readable content found at: {url}")
+            return None
 
         return {
-            "content": content.strip(),
+            "content": content,
             "date": date_text,
             "author": author_text
         }
 
     except Exception as e:
-        print(f"Error scraping {url}: {e}")
+        print(f"⚠️ Error scraping {url}: {e}")
         return None
 
 
-# --- Pull all pending rows ---
+# ---------------------------
+# Fetch pending records from Supabase
+# ---------------------------
 def fetch_pending_articles():
     resp = supabase.table("press_releases").select("id,url").eq("status", "pending").execute()
     return resp.data
 
 
-# --- Update record ---
+# ---------------------------
+# Update record in Supabase
+# ---------------------------
 def update_article(id, article):
     supabase.table("press_releases").update({
         "content": article["content"],
@@ -103,27 +121,30 @@ def update_article(id, article):
     }).eq("id", id).execute()
 
 
-# --- Main ---
+# ---------------------------
+# Main
+# ---------------------------
 if __name__ == "__main__":
-    print("Starting inner scrape...")
+    print("🚀 Starting BPI inner scrape...")
     pending = fetch_pending_articles()
-    print(f"Found {len(pending)} pending articles.")
+    print(f"Found {len(pending)} pending articles.\n")
 
     for row in pending:
         url = row["url"]
-        print(f"Scraping: {url}")
+        print(f"🔍 Scraping: {url}")
 
-        # Skip non-press-release links
-        if not url.startswith("https://www.federalreserve.gov/newsevents/pressreleases/"):
-            print(f"Skipping non-press-release URL: {url}")
+        # Skip unrelated or external URLs
+        if not url.startswith(BASE_URL):
+            print(f"Skipping external URL: {url}")
             continue
 
         article = extract_article_text(url)
         if article and article["content"]:
             update_article(row["id"], article)
-            print(f"Updated {row['id']} ✓")
+            print(f"✅ Updated record {row['id']}")
         else:
-            print(f"Skipped {url}")
-        time.sleep(1)  # polite delay between requests
+            print(f"⚠️ Skipped {url}")
 
-    print("Inner scrape complete.")
+        time.sleep(1)  # polite delay
+
+    print("\n🏁 Inner scrape complete.")

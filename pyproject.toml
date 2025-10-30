@@ -9,6 +9,7 @@ dependencies = [
     "beautifulsoup4>=4.14.2",
     "dotenv>=0.9.9",
     "fastembed>=0.7.3",
+    "feedparser>=6.0.12",
     "matplotlib>=3.10.7",
     "network>=0.1",
     "networkx>=3.5",
