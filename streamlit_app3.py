@@ -1,31 +1,16 @@
 """
-This Streamlit app provides an interactive interface for exploring and analyzing 
-federal financial compliance and fraud-related press releases. It integrates 
-semantic search powered by embeddings to identify relevant articles based on 
-user-defined queries, filters, and similarity thresholds. The app also generates 
-visual insights—such as fraud trend heatmaps, rolling trends, and word clouds—
-and allows users to download summarized PDF reports.
+USAA Fraud Research Dashboard
+---------------------------------
+Shows semantic relationships between financial compliance articles,
+extracts patterns, and summarizes insights using OpenAI.
 """
 
-import pandas as pd
 import streamlit as st
-from wordcloud import WordCloud
-from transformers import pipeline
-
-from src.visualizations import (
-    plot_keyword_momentum,
-    plot_trend_summary,
-    plot_thematic_wordcloud,
-    plot_keyword_network,
-    plot_top_terms,
-)
+import pandas as pd
 from src.data_loader import fetch_articles
-from src.pdf_generator import generate_pdf
-from src.embedding_search import run_search, get_embedder
 from src.sidebar_controls import sidebar_controls
-from src.search_section import search_section
-from src.article_analysis import analyze_articles
-from src.pattern_detector import detect_patterns
+from src.semantic_storytelling import run_semantic_storytelling  # ✅ brings back article list + charts
+from src.openai_summary import summarize_text  # ✅ only one summary engine
 
 # -----------------
 # Initialization
@@ -33,85 +18,59 @@ from src.pattern_detector import detect_patterns
 st.set_page_config(page_title="USAA Semantic Search", layout="wide")
 st.title("Financial Compliance Insight System")
 
-# Sidebar
+# Sidebar controls
 preset, year, keyword, threshold, top_k = sidebar_controls()
 default_query = "" if preset == "— none —" else preset
 st.info("Enter a query (or choose a preset in the sidebar), then click **Search**.")
 
-# Fetch all articles
+# Fetch articles
 all_articles = fetch_articles()
 
-# -----------------
-# Pattern Detection Section
-# -----------------
-st.markdown("### ⚠️ Emerging Fraud Patterns")
-patterns = detect_patterns(all_articles)
-
-col1, col2 = st.columns(2)
-with col1:
-    st.subheader("Top Keywords")
-    if patterns.get("keyword_counts"):
-        st.bar_chart(pd.Series(patterns["keyword_counts"]))
-    else:
-        st.info("No keywords found in recent articles.")
-
-with col2:
-    st.subheader("Common Phrases")
-    if patterns.get("top_phrases"):
-        st.dataframe(pd.DataFrame(patterns["top_phrases"], columns=["Phrase", "Mentions"]))
-    else:
-        st.info("No frequent phrases found in recent text data.")
-
-st.subheader("Activity by Hour (if available)")
-if patterns.get("hourly_pattern"):
-    st.bar_chart(pd.Series(patterns["hourly_pattern"]))
+if all_articles.empty:
+    st.warning("⚠️ No articles found in Supabase.")
 else:
-    st.info("No hourly pattern detected.")
+    st.success(f"✅ Loaded {len(all_articles)} articles from Supabase.")
 
 # -----------------
-# NLM Summarization
+# Semantic Storytelling + Charts + OpenAI Summary
 # -----------------
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+st.markdown("### ⚠️ Semantic Exploration & Storytelling")
 
-def summarize_patterns(patterns):
-    if not patterns.get("keyword_counts") or not patterns.get("top_phrases"):
-        return "Not enough data available to summarize recent fraud patterns."
-    text = f"Top keywords: {', '.join(patterns['keyword_counts'].keys())}. " \
-           f"Frequent phrases include: {', '.join(p for p, _ in patterns['top_phrases'][:5])}."
-    summary = summarizer(text, max_length=120, min_length=30, do_sample=False)[0]['summary_text']
-    return summary
+query_sentence = st.text_input(
+    "Enter a question or sentence to explore:",
+    placeholder="e.g., How are banks addressing AML and third-party risks?"
+)
 
-st.markdown("**🧠 Summary Insight:**")
-st.write(summarize_patterns(patterns))
-st.divider()
+run_semantic = st.button("Run Semantic Search")
 
-# -----------------
-# Embedding Model Init
-# -----------------
-embedder = get_embedder()
+if run_semantic and query_sentence.strip():
+    with st.spinner(f"Running semantic analysis for: '{query_sentence}'"):
+        # Step 1: Run semantic search + patterns + charts
+        patterns = run_semantic_storytelling(all_articles, query_sentence)
 
-# -----------------
-# Global Trends Section
-# -----------------
-st.markdown("### 🌐 Global Fraud Trends Overview")
+        # Step 2: Only run summary if patterns are valid
+        if isinstance(patterns, dict) and any(patterns.values()):
+            st.divider()
+            st.markdown("### 🧠 AI-Generated Summary (OpenAI)")
+            keyword_text = " ".join(list(patterns.get("keyword_counts", {}).keys()))
+            phrase_text = " ".join([p for p, _ in patterns.get("top_phrases", [])])
 
-try:
-    fraud_keywords = ["fraud", "scam", "aml", "launder", "bribe", "cyber", "identity", "enforcement"]
-    plot_keyword_momentum(all_articles, fraud_keywords)
-    plot_trend_summary(all_articles)
-    plot_top_terms(all_articles, top_n=15, focus_terms=fraud_keywords)
-    plot_keyword_network(all_articles)
-except Exception as e:
-    st.warning(f"Could not load visualizations: {e}")
+            trend_data = patterns.get("yearly_trend")
+            if trend_data is not None and not trend_data.empty:
+                recent_trends = trend_data.tail(3).to_dict(orient="records")
+                trend_summary = f"Recent yearly trends in mentions: {recent_trends}."
+            else:
+                trend_summary = "No clear yearly trend data detected."
 
-# -----------------
-# Search Section
-# -----------------
-hits = search_section(default_query, year, keyword, top_k, threshold)
+            # Combine content for OpenAI summary
+            summary_input = (
+                f"Analyze the following detected fraud and compliance patterns related to '{query_sentence}'. "
+                f"Keywords: {keyword_text}. Phrases: {phrase_text}. {trend_summary}"
+            )
 
-if hits:
-    analysis = analyze_articles(hits)
-    if analysis:
-        st.divider()
-        st.subheader("📊 Article Insights")
-        st.metric("Total Articles Retrieved", analysis["total_articles"])
+            summary_text = summarize_text(summary_input)
+            st.write(summary_text)
+        else:
+            st.warning("No meaningful patterns detected for summarization.")
+else:
+    st.info("Enter a full sentence or question above, then click **Run Semantic Search**.")

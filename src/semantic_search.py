@@ -14,51 +14,67 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 embedder = TextEmbedding("BAAI/bge-small-en-v1.5")
 
 def semantic_search(query, year=None, keyword=None, top_k=20):
-    """Perform semantic + optional keyword/year search."""
-    query_vector = np.array(list(embedder.embed([query]))[0])
+    """Perform semantic search with optional year/keyword filters."""
+    query_vector = list(embedder.embed([query]))[0]
 
-    # Step 1: Call the vector similarity function in Supabase
+    # Step 1: Call Supabase vector RPC
     response = supabase.rpc(
         "match_press_releases",
         {
-            "query_embedding": query_vector.tolist(),
+            "query_embedding": query_vector,
             "match_threshold": 0.6,
-            "match_count": 100  # get more results to filter later
+            "match_count": 100
         },
     ).execute()
 
     results = response.data or []
     if not results:
         print("⚠️ No semantic matches found.")
-        return
+        return []
 
-    # Step 2: Apply keyword/year filters locally
-    filtered = results
+    # Step 2: Collect IDs and fetch metadata
+    ids = [r["id"] for r in results]
+    meta_resp = (
+        supabase.table("press_releases_clean")
+        .select("id, title, url, content, date")
+        .in_("id", ids)
+        .execute()
+    )
+    meta_df = {m["id"]: m for m in meta_resp.data or []}
+
+    # Step 3: Merge metadata
+    enriched = []
+    for r in results:
+        meta = meta_df.get(r["id"], {})
+        enriched.append({**r, **meta})
+
+    # Step 4: Optional filters
     if year:
-        filtered = [r for r in filtered if r.get("date") and str(year) in str(r["date"])]
+        enriched = [r for r in enriched if r.get("date") and str(year) in str(r["date"])]
     if keyword:
-        filtered = [r for r in filtered if keyword.lower() in (r.get("content") or "").lower()]
+        enriched = [r for r in enriched if keyword.lower() in (r.get("content") or "").lower()]
 
-    # Step 3: Sort by similarity and show top_k
-    filtered = sorted(filtered, key=lambda x: x["similarity"], reverse=True)[:top_k]
+    # Step 5: Sort and show top_k
+    enriched = sorted(enriched, key=lambda x: x["similarity"], reverse=True)[:top_k]
 
-    print(f"\nTop {len(filtered)} semantic matches for: '{query}'")
+    print(f"\nTop {len(enriched)} matches for: '{query}'")
     if year:
-        print(f"📅 Filter: Year = {year}")
+        print(f"📅 Year filter: {year}")
     if keyword:
-        print(f"🔍 Filter: Keyword = '{keyword}'")
-
+        print(f"🔍 Keyword filter: {keyword}")
     print()
-    for i, r in enumerate(filtered, 1):
-        print(f"{i}. {r['title']}")
+
+    for i, r in enumerate(enriched, 1):
+        print(f"{i}. {r.get('title', 'Untitled')}")
         print(f"   Score: {r['similarity']:.3f}")
         print(f"   Date: {r.get('date', 'N/A')}")
-        print(f"   URL: {r['url']}\n")
+        print(f"   URL: {r.get('url', 'N/A')}\n")
+
+    return enriched
+
 
 if __name__ == "__main__":
-    # Example queries
     semantic_search("check fraud")
     # semantic_search("offshore payments", keyword="fraud")
     # semantic_search("fraud enforcement action", year=2024)
     # semantic_search("money laundering", keyword="AML")
-    # semantic_search("financial scams", year=2022, keyword="bank")
