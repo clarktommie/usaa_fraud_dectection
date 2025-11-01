@@ -12,11 +12,16 @@ from src.sidebar_controls import sidebar_controls
 from src.semantic_storytelling import run_semantic_storytelling
 from src.openai_summary import summarize_text
 from src.library_viewer import render_library_viewer
+from src.usaa_logo import display_usaa_logo
+
+
+
 
 # -----------------
 # Initialization
 # -----------------
 st.set_page_config(page_title="USAA Semantic Search", layout="wide")
+display_usaa_logo()
 st.title("Financial Compliance Insight System")
 
 # Sidebar controls
