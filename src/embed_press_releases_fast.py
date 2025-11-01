@@ -48,7 +48,7 @@ def fetch_all_rows():
         end = start + FETCH_SIZE - 1
         try:
             response = (
-                supabase.table("press_releases_clean")
+                supabase.table("press_releases_embed")  # <-- changed only here
                 .select("id, title, content")
                 .order("id", desc=False)
                 .range(start, end)
