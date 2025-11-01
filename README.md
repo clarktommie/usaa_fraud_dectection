@@ -46,6 +46,22 @@ Streamlit Semantic Dashboard + OpenAI Summarization
 
 ---
 
+## 🧩 Multimodal Architecture
+
+This system integrates multiple *data and model modalities*, making it a **multimodal AI analytics pipeline**:  
+
+| Modality | Description | Example |
+|-----------|-------------|----------|
+| **Textual (unstructured)** | Raw regulatory press releases and PDF text content. | Extracted text from Federal Reserve sources |
+| **Structured/tabular** | Metadata such as `date`, `author`, and similarity scores. | Supabase table fields and Pandas DataFrames |
+| **Vector/semantic** | High-dimensional embeddings used for semantic similarity and clustering. | SentenceTransformer + Supabase vector search |
+| **LLM-generated (OpenAI)** | Contextual summaries and narrative insights. | GPT-generated insights via `openai_summary.py` |
+| **Visual** | Streamlit-based charts showing keyword frequencies and yearly trends. | Line and bar charts in `streamlit_app3.py` |
+
+Together, these layers enable semantic storytelling across multiple information forms — text, embeddings, structured metadata, and visual analytics.
+
+---
+
 ## System Overview
 
 ### 🧠 Core Workflow
@@ -132,6 +148,7 @@ The app will open in your browser at `http://localhost:8501`.
 ✅ **ETL pipeline, semantic model, and OpenAI summarization are fully operational**  
 ✅ **Focus-term detection and yearly trend visualization functioning correctly**  
 ✅ **Library integration for topic-based article collections implemented**  
+✅ **Multimodal architecture documented and production-ready**  
 
 Future updates (e.g., real-time scraping, fine-tuned embeddings, multi-language support) will be logged in future revisions.
 
