@@ -18,6 +18,34 @@ It integrates **embedding-based semantic search** with **OpenAI-powered summariz
 
 ---
 
+## ⚙️ ETL Pipeline
+
+The system follows a full **Extract–Transform–Load (ETL)** process:
+
+| Stage | Description | Tools Used |
+|--------|--------------|-------------|
+| **Extract** | Collects press releases and PDF documents from the Federal Reserve Board and related regulators. | `requests`, `BeautifulSoup4`, `PyPDF2` |
+| **Transform** | Cleans raw text, standardizes date formats (`date_standard`), merges title + content, and extracts metadata. | `pandas`, `re`, `datetime` |
+| **Load** | Uploads structured data into **Supabase**, storing both article text and embeddings for similarity search. | `supabase-py`, `fastembed`, `SentenceTransformer` |
+
+### 📊 ETL Workflow
+```
+Source Sites (Federal Reserve, etc.)
+      ↓
+Data Scraper (HTML/PDF)
+      ↓
+Text & Metadata Cleaning
+      ↓
+Supabase Storage + Vector Embeddings
+      ↓
+Streamlit Semantic Dashboard + OpenAI Summarization
+```
+
+*You can visualize this flow by adding an image later:*  
+`![ETL Pipeline Diagram](images/etl_pipeline.png)`
+
+---
+
 ## System Overview
 
 ### 🧠 Core Workflow
@@ -101,8 +129,7 @@ The app will open in your browser at `http://localhost:8501`.
 ---
 
 ## Current Status
-✅ **Semantic model, embeddings, and article pipeline are fully operational**  
-✅ **OpenAI summarization produces contextually accurate insights**  
+✅ **ETL pipeline, semantic model, and OpenAI summarization are fully operational**  
 ✅ **Focus-term detection and yearly trend visualization functioning correctly**  
 ✅ **Library integration for topic-based article collections implemented**  
 
