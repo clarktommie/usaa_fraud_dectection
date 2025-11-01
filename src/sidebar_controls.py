@@ -1,48 +1,49 @@
 import streamlit as st
 
 def sidebar_controls():
-    """Render the Streamlit sidebar and return filter selections."""
+    """
+    Render the Streamlit sidebar for the fraud research app
+    and return the selected filters and focus option.
+    """
     with st.sidebar:
-        st.header("🔍 Search Filters")
+        st.header("🎯 Fraud Research Controls")
 
+        # --- Common preset queries ---
         preset = st.selectbox(
-            "Choose a preset query (optional):",
+            "Choose a preset topic:",
             [
                 "— none —",
-                "AML",
-                "Bank Secrecy Act compliance",
-                "money laundering",
-                "check fraud",
-                "synthetic identity fraud",
-                "enforcement action",
-                "consumer fraud complaints",
+                "How are banks improving AML compliance?",
+                "How are regulators addressing money laundering trends?",
+                "What fraud risks are emerging from digital payments?",
+                "How are institutions responding to BSA/AML enforcement actions?",
+                "What patterns exist in synthetic identity fraud?",
+                "How are consumers reporting financial scams or fraud?",
+                "What role does AI play in detecting financial crimes?",
             ],
             index=0,
         )
 
-        year = st.text_input("Filter by Year (optional):", placeholder="e.g., 2024")
-        keyword = st.text_input(
-            "Filter by Keyword in Content (optional):",
-            placeholder="e.g., cyber, bank, scam",
-        )
+        # --- Optional year or keyword filters ---
+        st.subheader("📅 Optional Filters")
+        year = st.text_input("Year (optional):", placeholder="e.g., 2024")
+        keyword = st.text_input("Keyword (optional):", placeholder="e.g., FinCEN, wire transfer, scam")
 
-        threshold = st.slider(
-            "Match Threshold (similarity score):",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.60,
-            step=0.05,
-            help="Higher values = stricter match filtering",
-        )
-
-        top_k = st.selectbox(
-            "Number of Results to Return:",
-            options=[5, 10, 20, 50, 100, 500, 1000, 5000, 10000],
-            index=2,
-            help="Controls how many matching articles are displayed.",
+        # --- Quick Insight Prompts ---
+        st.markdown("### 💡 Quick Insights")
+        insight_choice = st.radio(
+            "Focus the summary on:",
+            [
+                "Trends and patterns over time",
+                "Emerging risk areas",
+                "Policy and regulatory tone",
+                "Consumer or institutional impact",
+            ],
+            index=0,
+            help="Select the analytical focus for the OpenAI summary.",
         )
 
         st.markdown("---")
-        st.caption("Adjust these filters to refine your semantic search results.")
+        st.caption("Use presets or filters to guide your semantic storytelling search.")
 
-    return preset, year, keyword, threshold, top_k
+    return preset, year, keyword, insight_choice

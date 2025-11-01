@@ -86,3 +86,5 @@ language sql stable as $$
   order by similarity desc
   limit match_count;
 $$;
+
+## make sure to format date column
