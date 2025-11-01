@@ -9,8 +9,9 @@ import streamlit as st
 import pandas as pd
 from src.data_loader import fetch_articles
 from src.sidebar_controls import sidebar_controls
-from src.semantic_storytelling import run_semantic_storytelling  # ✅ brings back article list + charts
-from src.openai_summary import summarize_text  # ✅ only one summary engine
+from src.semantic_storytelling import run_semantic_storytelling
+from src.openai_summary import summarize_text
+from src.library_viewer import render_library_viewer
 
 # -----------------
 # Initialization
@@ -68,12 +69,17 @@ if run_semantic and query_sentence.strip():
     else:
         with st.spinner(f"Running semantic analysis for: '{query_sentence}'"):
             # Step 1: Semantic + pattern detection (returns articles + charts)
-            patterns = run_semantic_storytelling(df, query_sentence)
+            patterns, top_articles = run_semantic_storytelling(df, query_sentence)
 
-            # Step 2: Summarize patterns using OpenAI
+            # Step 2: Summarize patterns using OpenAI (from actual article text)
             if isinstance(patterns, dict) and any(patterns.values()):
                 st.divider()
                 st.markdown("### 🧠 AI-Generated Summary (OpenAI)")
+
+                # --- Extract top article text for richer summary ---
+                top_text = " ".join(
+                    top_articles["content"].fillna("").tolist()[:5]
+                )[:8000]  # limit for token safety
 
                 keyword_text = " ".join(list(patterns.get("keyword_counts", {}).keys()))
                 phrase_text = " ".join([p for p, _ in patterns.get("top_phrases", [])])
@@ -85,7 +91,6 @@ if run_semantic and query_sentence.strip():
                 else:
                     trend_summary = "No clear yearly trend data detected."
 
-                # Add insight focus for OpenAI guidance
                 focus_map = {
                     "Trends and patterns over time": "Focus on trend shifts and anomalies.",
                     "Emerging risk areas": "Highlight newly emerging fraud risks or tactics.",
@@ -94,13 +99,15 @@ if run_semantic and query_sentence.strip():
                 }
                 focus_note = focus_map.get(insight_choice, "")
 
+                # --- Combine everything for OpenAI ---
                 summary_input = (
                     f"User question: {query_sentence}\n"
                     f"{focus_note}\n\n"
-                    f"Detected keywords: {keyword_text}\n"
-                    f"Frequent phrases: {phrase_text}\n"
-                    f"{trend_summary}\n\n"
-                    f"Provide a short analytical summary with 3–5 insights."
+                    f"--- Article Excerpts ---\n{top_text}\n\n"
+                    f"--- Keywords ---\n{keyword_text}\n\n"
+                    f"--- Common Phrases ---\n{phrase_text}\n\n"
+                    f"--- Trend Summary ---\n{trend_summary}\n\n"
+                    f"Provide a cohesive, paragraph-style analytical summary (no bullet points)."
                 )
 
                 summary_text = summarize_text(summary_input)
@@ -109,9 +116,10 @@ if run_semantic and query_sentence.strip():
                 st.warning("No meaningful patterns detected for summarization.")
 else:
     st.info("Enter a question or choose a preset, then click **Run Semantic Search**.")
-from src.library_viewer import render_library_viewer
 
-# In sidebar or navigation:
+# -----------------
+# Library Viewer Integration
+# -----------------
 if st.sidebar.button("📚 Open Library Viewer"):
     st.session_state["view_library"] = True
 

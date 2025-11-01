@@ -1,8 +1,15 @@
+"""
+data_loader.py
+---------------------------------
+Fetches press releases from Supabase in paginated batches
+to avoid timeouts and large single-query loads.
+"""
+
 import os
 import pandas as pd
 import streamlit as st
-from dotenv import load_dotenv
 from supabase import create_client
+from dotenv import load_dotenv
 
 # -------------------
 # Setup
@@ -12,49 +19,56 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# -------------------
-# Cached Safe Fetch
-# -------------------
-@st.cache_data(show_spinner=False)
-def fetch_articles():
-    """Fetch up to 10,000 articles from Supabase (press_releases_clean table)."""
-    try:
-        table = "press_releases_clean"
-        all_rows = []
-        batch_size = 1000
-        offset = 0
 
+# -------------------
+# Batched Fetch
+# -------------------
+@st.cache_data(show_spinner=True)
+def fetch_articles(limit=1000, max_rows=10000):
+    """
+    Safely fetch articles from Supabase in small batches to avoid statement timeouts.
+    Returns a pandas DataFrame of all retrieved articles.
+    """
+    all_data = []
+    offset = 0
+
+    try:
         while True:
             response = (
-                supabase.table(table)
-                .select("id, title, url, date, content, author")
-                .range(offset, offset + batch_size - 1)
+                supabase.table("press_releases_clean")
+                .select("id, title, url, date_standard, content, author")
+                .range(offset, offset + limit - 1)
                 .execute()
             )
-            data = response.data or []
-            all_rows.extend(data)
-            if len(data) < batch_size:
-                break
-            offset += batch_size
 
-        if not all_rows:
+            batch = response.data or []
+            if not batch:
+                break
+
+            all_data.extend(batch)
+            offset += limit
+
+            # stop after reaching max_rows safety cap
+            if offset >= max_rows:
+                break
+
+        if not all_data:
             st.warning("⚠️ No data returned from Supabase.")
             return pd.DataFrame()
 
-        df = pd.DataFrame(all_rows)
-        df = df.dropna(subset=["content"])
+        df = pd.DataFrame(all_data)
 
-        # --- Use best date column available ---
+        # Normalize and standardize date
         if "date_standard" in df.columns:
-            df["date"] = pd.to_datetime(df["date_standard"], errors="coerce", utc=True)
-        else:
-            df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
+            df["date"] = pd.to_datetime(df["date_standard"], errors="coerce")
+        elif "date" in df.columns:
+            df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
-        df["year"] = df["date"].dt.year.astype("Int64")
-
-        st.success(f"✅ Loaded {len(df)} articles from Supabase.")
+        # Drop empty content rows
+        df = df.dropna(subset=["content"])
+        st.success(f"✅ Loaded {len(df)} articles from Supabase in batches of {limit}.")
         return df
 
     except Exception as e:
-        st.error(f"Error fetching articles: {e}")
+        st.error(f"⚠️ Error fetching articles: {e}")
         return pd.DataFrame()
