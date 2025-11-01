@@ -109,3 +109,11 @@ if run_semantic and query_sentence.strip():
                 st.warning("No meaningful patterns detected for summarization.")
 else:
     st.info("Enter a question or choose a preset, then click **Run Semantic Search**.")
+from src.library_viewer import render_library_viewer
+
+# In sidebar or navigation:
+if st.sidebar.button("📚 Open Library Viewer"):
+    st.session_state["view_library"] = True
+
+if st.session_state.get("view_library"):
+    render_library_viewer()
