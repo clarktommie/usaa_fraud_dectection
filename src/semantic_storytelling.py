@@ -33,28 +33,82 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 # Domain Keywords
 # -----------------
 DOMAIN_KEYWORDS = {
-    "fraud", "scam", "aml", "money", "laundering", "cyber", "identity",
-    "sanctions", "risk", "bribery", "enforcement", "compliance", "bsa",
-    "fincen", "reporting", "audit", "settlement", "penalty", "investigation",
-    "oversight", "governance", "policy", "supervision", "regulation",
-    "bank", "consumer", "payments", "transaction", "account", "credit",
-    "debit", "loan", "wire", "funds", "transfer", "mortgage", "foreclosure",
-    "ai", "artificial", "machine", "learning", "automation", "algorithm",
-    "model", "analytics", "system", "technology", "data", "monitoring",
-    "elder", "exploitation", "elder financial exploitation",
-    "foreclosure relief scam", "mortgage loan modification", "loan modification",
-    "fraud alert", "fraud alerts", "fraud by fiduciaries", "fiduciary fraud",
-    "identity theft", "impostor scam", "imposter scam", "imposter scams",
-    "mail fraud", "phishing", "spoofing", "wire transfer fraud",
-    "wire fraud", "money transfer fraud", "security freeze",
-    "credit freeze", "grandparent scam", "caller id spoofing",
-    "military fraud alert", "active duty alert", "financial exploitation",
-    "fake charity", "fake government call", "investment scam",
-    "romance scam", "debt relief scam", "lottery scam",
-    "check scam", "check fraud", "online scam", "phone scam",
-    "credit card fraud", "mortgage scam", "foreclosure scam",
-    "identity scam", "phishing email", "fraudulent website",
+    "fraud_detection": {
+        "label": "Fraud Detection",
+        "context": (
+            "Fraud detection involves identifying, preventing, and responding to deceptive or illegal financial activity. "
+            "It includes scams, phishing, identity theft, wire fraud, and fraudulent transactions. "
+            "Modern fraud detection also monitors impersonation scams, social engineering tactics, "
+            "account takeovers, business email compromise, and synthetic identity fraud. "
+            "The focus is on detecting suspicious behavior patterns and protecting both consumers and institutions from financial loss."
+        )
+    },
+
+    "aml_compliance": {
+        "label": "AML Compliance",
+        "context": (
+            "Anti-money laundering (AML) compliance refers to the processes and regulations that financial institutions follow "
+            "to detect and prevent the movement of illicit funds. It includes adherence to BSA and FinCEN guidelines, "
+            "performing Know Your Customer (KYC) checks, monitoring transactions for suspicious activity, "
+            "reporting suspicious activity reports (SARs), and managing sanctions and risk exposure. "
+            "AML programs are essential to reducing money laundering and terrorism financing risks."
+        )
+    },
+
+    "financial_crime": {
+        "label": "Financial Crime",
+        "context": (
+            "Financial crime encompasses a wide range of offenses such as bribery, corruption, embezzlement, "
+            "fraud by fiduciaries, money laundering, insider trading, and investment scams. "
+            "It often involves the exploitation of financial systems to gain illicit profits "
+            "or conceal illegal activities through complex transactions and shell entities."
+        )
+    },
+
+    "regulatory": {
+        "label": "Regulatory Enforcement",
+        "context": (
+            "Regulatory enforcement focuses on how authorities and oversight bodies govern, supervise, and penalize organizations "
+            "for misconduct or policy violations. It includes compliance audits, enforcement actions, settlements, "
+            "penalties, and updates to governance and oversight policies. Regulators often release press statements "
+            "or guidance documents describing how they address risks like AML deficiencies, consumer protection, "
+            "and emerging fraud threats."
+        )
+    },
+
+    "technology_context": {
+        "label": "Technology in Fraud Prevention",
+        "context": (
+            "Technology plays a crucial role in combating financial misconduct. "
+            "This includes artificial intelligence, machine learning, and analytics systems used for real-time fraud detection, "
+            "pattern recognition, and anomaly detection. "
+            "Automated transaction monitoring tools, natural language models for alert triage, and predictive algorithms "
+            "are increasingly used to identify evolving threats such as phishing campaigns and digital impersonations."
+        )
+    },
+
+    "cyber_fraud": {
+        "label": "Cyber Fraud and Impersonation",
+        "context": (
+            "Cyber fraud involves digital deception, where attackers use online methods to steal sensitive data or assets. "
+            "This includes phishing emails, fake websites, social media impersonation, malware-based credential theft, "
+            "and ransomware extortion. Cyber fraud prevention focuses on authentication controls, user awareness, "
+            "and cybersecurity integration with financial monitoring systems."
+        )
+    },
+
+    "consumer_protection": {
+        "label": "Consumer Protection and Awareness",
+        "context": (
+            "Consumer protection focuses on educating and defending individuals against deceptive financial practices. "
+            "This includes awareness of online scams, fraudulent investment offers, fake charities, and impersonation calls. "
+            "It emphasizes transparency, financial literacy, and proactive fraud alerts to help consumers recognize red flags."
+        )
+    }
 }
+
+
+
 
 # -----------------
 # Focus Detection
@@ -94,6 +148,7 @@ def determine_focus_with_openai(query_sentence: str) -> str:
     except Exception as e:
         st.warning(f"⚠️ OpenAI focus detection failed: {e}")
         return detect_focus_word(query_sentence)
+    
 
 
 # -----------------
