@@ -37,6 +37,7 @@ def can_scrape(url: str) -> bool:
         print(f"⚠️ Could not read robots.txt for {base} — assuming allowed.")
         return True
 
+
 # ---------------------------
 # Federal Reserve Recursive Scraper
 # ---------------------------
@@ -52,7 +53,6 @@ def scrape_federal_reserve():
         print("🚫 Skipping Federal Reserve (robots.txt blocked)")
         return []
 
-    # Step 1 – Get all yearly/topic index pages
     resp = requests.get(start_url, headers=HEADERS, timeout=25)
     soup = BeautifulSoup(resp.text, "html.parser")
 
@@ -63,7 +63,6 @@ def scrape_federal_reserve():
     ]
     print(f"📄 Found {len(index_links)} yearly/topic index pages")
 
-    # Step 2 – Visit each index page and extract actual articles
     for link in index_links:
         try:
             sub_resp = requests.get(link, headers=HEADERS, timeout=25)
@@ -82,7 +81,6 @@ def scrape_federal_reserve():
 
     print(f"📰 Total unique Federal Reserve release URLs: {len(all_links)}")
 
-    # Step 3 – Prepare Supabase records
     records = []
     for u in sorted(all_links):
         records.append({
@@ -91,13 +89,15 @@ def scrape_federal_reserve():
             "date": None,
             "scraped_at": datetime.now(UTC).isoformat(),
             "author": None,
+            "source": "FederalReserve",
             "status": "pending",
             "updated_at": datetime.now(UTC).isoformat(),
         })
     return records
 
+
 # ---------------------------
-# Bank Policy Institute Scraper (basic placeholder)
+# Bank Policy Institute Scraper
 # ---------------------------
 def scrape_bpi():
     base = "https://bpi.com"
@@ -132,10 +132,54 @@ def scrape_bpi():
             "date": None,
             "scraped_at": datetime.now(UTC).isoformat(),
             "author": None,
+            "source": "BPI",
             "status": "pending",
             "updated_at": datetime.now(UTC).isoformat(),
         })
     return records
+
+
+# ---------------------------
+# CFPB Activity Log Scraper
+# ---------------------------
+def scrape_cfpb_activity_log():
+    base = "https://www.consumerfinance.gov"
+    start_url = f"{base}/activity-log/"
+
+    print("🌐 Scraping CFPB Activity Log...")
+
+    if not can_scrape(start_url):
+        print("🚫 Skipping CFPB (robots.txt blocked)")
+        return []
+
+    all_links = set()
+    try:
+        resp = requests.get(start_url, headers=HEADERS, timeout=25)
+        soup = BeautifulSoup(resp.text, "html.parser")
+
+        for item in soup.select("li.o-post-list__item a[href]"):
+            href = item["href"]
+            full = urljoin(base, href)
+            all_links.add(full)
+        print(f"📰 Total CFPB activity links collected: {len(all_links)}")
+
+    except Exception as e:
+        print(f"⚠️ CFPB scrape error: {e}")
+
+    records = []
+    for u in sorted(all_links):
+        records.append({
+            "title": None,
+            "url": u,
+            "date": None,
+            "scraped_at": datetime.now(UTC).isoformat(),
+            "author": None,
+            "source": "ConsumerFinanceGov",
+            "status": "pending",
+            "updated_at": datetime.now(UTC).isoformat(),
+        })
+    return records
+
 
 # ---------------------------
 # Upload to Supabase
@@ -153,6 +197,7 @@ def upload_to_supabase(records):
         time.sleep(0.5)
     print("✅ All records uploaded successfully.")
 
+
 # ---------------------------
 # Main
 # ---------------------------
@@ -161,17 +206,22 @@ if __name__ == "__main__":
 
     all_records = []
 
-    # Scrape Federal Reserve recursively
+    # Federal Reserve
     fed_records = scrape_federal_reserve()
     print(f"✅ Federal Reserve: {len(fed_records)} records scraped.\n")
     all_records.extend(fed_records)
 
-    # Scrape BPI (optional for now)
+    # Bank Policy Institute
     bpi_records = scrape_bpi()
     print(f"✅ BPI: {len(bpi_records)} records scraped.\n")
     all_records.extend(bpi_records)
 
-    # Upload all results
+    # CFPB Activity Log
+    cfpb_records = scrape_cfpb_activity_log()
+    print(f"✅ CFPB: {len(cfpb_records)} records scraped.\n")
+    all_records.extend(cfpb_records)
+
+    # Upload all
     print(f"🧾 Total scraped across all sources: {len(all_records)}")
     upload_to_supabase(all_records)
     print("🏁 Universal Outer Scraper Complete.")

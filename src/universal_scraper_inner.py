@@ -58,10 +58,8 @@ def extract_text_from_pdf(content):
             print("⚠️ PDF has no extractable text (may be scanned or malformed).")
         return text
     except Exception as e:
-        # Try a fallback for malformed PDFs
         print(f"⚠️ PDF extraction error: {e} — trying fallback decode...")
         try:
-            # fallback: decode visible text bytes (works for some broken PDFs)
             decoded = content.decode("latin-1", errors="ignore")
             snippet = decoded[:1000]
             if "Copyright" in snippet or "United States" in snippet:
@@ -70,7 +68,6 @@ def extract_text_from_pdf(content):
         except Exception:
             pass
         return ""
-
 
 
 def parse_html(resp, base_url):
@@ -82,7 +79,7 @@ def parse_html(resp, base_url):
     title = title_tag.get_text(strip=True) if title_tag else None
 
     # Standard article text
-    main = soup.select_one("div.entry-content, div.article__body, article, main, div.col-sm-8") or soup
+    main = soup.select_one("div.o-post-content, div.entry-content, div.article__body, article, main, div.col-sm-8") or soup
     paragraphs = [p.get_text(" ", strip=True) for p in main.find_all("p")]
     content = "\n\n".join([t for t in paragraphs if len(t.split()) > 5]).strip()
 
@@ -118,7 +115,8 @@ def parse_html(resp, base_url):
                 pdf_text = extract_text_from_pdf(pdf_resp.content)
                 if len(pdf_text.split()) > len(content.split()):
                     content = pdf_text
-    # After the current pdf_link check:
+
+    # Check for multiple PDFs
     if not content or len(content.split()) < 40:
         pdf_links = soup.find_all("a", href=lambda h: h and h.lower().endswith(".pdf"))
         for link in pdf_links:
@@ -129,7 +127,6 @@ def parse_html(resp, base_url):
                 pdf_text = extract_text_from_pdf(pdf_resp.content)
                 if pdf_text:
                     content += "\n\n" + pdf_text
-
 
     return {"title": title, "content": content, "date": date, "author": author}
 
@@ -182,41 +179,45 @@ def mark_failed(record_id, reason=None):
 # ---------------------------
 if __name__ == "__main__":
     print("🚀 Starting Universal Inner Scraper (no embeddings)...")
+
     pending = fetch_pending_articles()
     print(f"Found {len(pending)} pending articles.\n")
 
-    for row in pending:
-        url = row["url"]
-        print(f"🔍 Scraping: {url}")
+    if not pending:
+        print("⚠️ No pending articles found — inner scraper exiting.")
+    else:
+        for row in pending:
+            url = row["url"]
+            print(f"🔍 Scraping: {url}")
 
-        if not can_fetch(url):
-            mark_failed(row["id"], "robots.txt disallowed")
-            continue
+            if not can_fetch(url):
+                mark_failed(row["id"], "robots.txt disallowed")
+                continue
 
-        resp = get_html(url)
-        if not resp:
-            mark_failed(row["id"], "failed to fetch HTML")
-            continue
+            resp = get_html(url)
+            if not resp:
+                mark_failed(row["id"], "failed to fetch HTML")
+                continue
 
-        parsed = parse_html(resp, url)
+            parsed = parse_html(resp, url)
 
-        if not parsed.get("content") or len(parsed["content"].split()) < 20:
-            mark_failed(row["id"], "empty or too short")
-            continue
+            if not parsed.get("content") or len(parsed["content"].split()) < 20:
+                mark_failed(row["id"], "empty or too short")
+                continue
 
-        clean_record = {
-            "id": row["id"],
-            "title": parsed.get("title") or row.get("title"),
-            "url": url,
-            "date": parsed.get("date") or row.get("date"),
-            "author": parsed.get("author") or row.get("author"),
-            "content": parsed.get("content"),
-            "status": "complete",
-        }
+            clean_record = {
+                "id": row["id"],
+                "title": parsed.get("title") or row.get("title"),
+                "url": url,
+                "date": parsed.get("date") or row.get("date"),
+                "author": parsed.get("author") or row.get("author"),
+                "content": parsed.get("content"),
+                "status": "complete",
+            }
 
-        upload_clean_record(clean_record)
-        mark_complete(row["id"])
-        print(f"✅ Scraped and saved: {url}")
-        time.sleep(1)
+            upload_clean_record(clean_record)
+            mark_complete(row["id"])
+            print(f"✅ Scraped and saved: {url}")
+            time.sleep(1)
 
     print("\n🏁 Universal Inner Scraper Complete.")

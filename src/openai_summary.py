@@ -27,7 +27,7 @@ def summarize_text(text: str):
                 },
                 {"role": "user", "content": text},
             ],
-            temperature=0.6,
+            temperature=0.2,
             max_tokens=1200,
         )
         return response.choices[0].message.content.strip()
