@@ -88,3 +88,7 @@ language sql stable as $$
 $$;
 
 ## make sure to format date column
+
+FUNCTION CALLING USING OPENAI OR TOOL CALLING
+  with structured outputs
+  and then move to agents

@@ -9,6 +9,7 @@ import os
 import pandas as pd
 from supabase import create_client
 from dotenv import load_dotenv
+import streamlit as st
 
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
