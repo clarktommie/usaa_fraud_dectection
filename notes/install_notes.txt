@@ -89,6 +89,7 @@ $$;
 
 ## make sure to format date column
 
+<<<<<<< HEAD
 
 insert into press_releases_fraud
 select *
@@ -103,3 +104,8 @@ where title ilike '%fraud%'
    or content ilike '%scam%'
    or content ilike '%identity%'
    or content ilike '%cyber%';
+=======
+FUNCTION CALLING USING OPENAI OR TOOL CALLING
+  with structured outputs
+  and then move to agents
+>>>>>>> 8ba48a35afeb146886020cdde47c90041b7e4991
