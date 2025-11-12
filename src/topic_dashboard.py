@@ -20,7 +20,7 @@ from supabase import create_client
 from dotenv import load_dotenv
 import os
 
-from src.topic_forecasting import forecast_topic, forecast_all_topics
+# from src.topic_forecasting import forecast_topic, forecast_all_topics
 
 load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
