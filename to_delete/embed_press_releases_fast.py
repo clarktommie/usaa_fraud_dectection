@@ -26,7 +26,8 @@ embedder = TextEmbedding("BAAI/bge-large-en-v1.5")
 # ---------------------
 FETCH_SIZE = 500
 BATCH_SIZE = 100
-TARGET_TABLE = "press_releases_embed"
+SOURCE_TABLE = "press_releases_clean"   # ✅ embed from clean text
+TARGET_TABLE = "press_releases_embed"   # ✅ store embeddings here
 
 # ---------------------
 # Helpers
@@ -36,10 +37,11 @@ def clean_text(text: str) -> str:
     if not text:
         return ""
     text = text.replace("\n", " ").replace("\r", " ")
-    text = " ".join(text.split())  # collapse spaces
+    text = " ".join(text.split())
     return text.strip()
 
 def fetch_all_rows():
+    """Fetch all cleaned records from Supabase in pages."""
     print("📥 Fetching data from Supabase (paged)...")
     all_data = []
     start = 0
@@ -48,14 +50,14 @@ def fetch_all_rows():
         end = start + FETCH_SIZE - 1
         try:
             response = (
-                supabase.table("press_releases_embed")  # <-- changed only here
+                supabase.table(SOURCE_TABLE)
                 .select("id, title, content")
                 .order("id", desc=False)
                 .range(start, end)
                 .execute()
             )
         except Exception as e:
-            print(f"⚠️ Retry due to Supabase timeout at rows {start}–{end}: {e}")
+            print(f"⚠️ Retry due to Supabase error at rows {start}–{end}: {e}")
             time.sleep(3)
             continue
 
@@ -72,17 +74,14 @@ def fetch_all_rows():
     print(f"✅ Total fetched: {len(all_data)} rows.")
     return pd.DataFrame(all_data)
 
-
-
 def normalize(vectors):
     """L2 normalize embeddings for cosine similarity."""
     arr = np.array(vectors)
     norms = np.linalg.norm(arr, axis=1, keepdims=True)
     return arr / np.maximum(norms, 1e-12)
 
-
 def upload_batch(records):
-    """Upload to Supabase with retry logic."""
+    """Upload a batch of embeddings with retry logic."""
     for attempt in range(2):
         try:
             supabase.table(TARGET_TABLE).upsert(records).execute()
@@ -91,7 +90,6 @@ def upload_batch(records):
             print(f"⚠️ Upload failed (attempt {attempt + 1}): {e}")
             time.sleep(2)
     print("❌ Batch permanently failed after retries.")
-
 
 # ---------------------
 # Main Process

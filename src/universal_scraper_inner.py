@@ -24,6 +24,7 @@ USER_AGENT = "Tommie-Clark-Fraud-Scraper/2.0 (+your-email@example.com)"
 # Helper Functions
 # ---------------------------
 def can_fetch(url):
+    """Check robots.txt permissions."""
     base = f"{urlparse(url).scheme}://{urlparse(url).netloc}"
     robots_url = f"{base}/robots.txt"
     try:
@@ -39,6 +40,7 @@ def can_fetch(url):
 
 
 def get_html(url):
+    """Fetch HTML content with standard headers."""
     try:
         resp = requests.get(url, headers={"User-Agent": USER_AGENT}, timeout=25)
         resp.raise_for_status()
@@ -49,84 +51,81 @@ def get_html(url):
 
 
 def extract_text_from_pdf(content):
-    """Extract text from PDF content safely."""
+    """Extract text safely from PDFs."""
     try:
         reader = PdfReader(BytesIO(content))
-        pages = [p.extract_text() or "" for p in reader.pages]
-        text = "\n".join(pages).strip()
+        text = "\n".join([p.extract_text() or "" for p in reader.pages]).strip()
         if not text:
-            print("⚠️ PDF has no extractable text (may be scanned or malformed).")
+            print("⚠️ PDF had no extractable text.")
         return text
     except Exception as e:
-        print(f"⚠️ PDF extraction error: {e} — trying fallback decode...")
+        print(f"⚠️ PDF extraction error: {e} — fallback decoding...")
         try:
             decoded = content.decode("latin-1", errors="ignore")
-            snippet = decoded[:1000]
-            if "Copyright" in snippet or "United States" in snippet:
-                print("🩹 Partial recovery via fallback decode.")
-                return snippet
+            return decoded[:1500]
         except Exception:
-            pass
-        return ""
+            return ""
 
 
 def parse_html(resp, base_url):
-    """Extract title, content, author, and date — with fallback to embedded PDF."""
+    """Extract title, date, author, and main content (with PDF fallback)."""
     soup = BeautifulSoup(resp.text, "html.parser")
 
     # Title
     title_tag = soup.find("title")
     title = title_tag.get_text(strip=True) if title_tag else None
 
-    # Standard article text
-    main = soup.select_one("div.o-post-content, div.entry-content, div.article__body, article, main, div.col-sm-8") or soup
+    # Standard content
+    main = (
+        soup.select_one(
+            "div.o-post-content, div.entry-content, div.article__body, article, main, div.col-sm-8"
+        )
+        or soup
+    )
     paragraphs = [p.get_text(" ", strip=True) for p in main.find_all("p")]
     content = "\n\n".join([t for t in paragraphs if len(t.split()) > 5]).strip()
 
-    # Legacy fallback
+    # CFPB fallback (different structure)
     if not content:
-        legacy_blocks = soup.find_all(["font", "td", "pre", "div"], text=True)
-        content = "\n\n".join(
-            [b.get_text(" ", strip=True) for b in legacy_blocks if len(b.get_text(strip=True).split()) > 5]
-        ).strip()
+        alt = soup.select_one("div.m-text-block, section.o-feature, div.o-page-content") or soup
+        alt_paragraphs = [p.get_text(" ", strip=True) for p in alt.find_all("p")]
+        content = "\n\n".join([t for t in alt_paragraphs if len(t.split()) > 5]).strip()
 
-    # Date extraction
+    # Date
     tag = soup.select_one("time[datetime], time, meta[property='article:published_time']")
-    date = tag.get("datetime") if tag and tag.has_attr("datetime") else (
-        tag.get("content") if tag and tag.has_attr("content") else (
-            tag.get_text(strip=True) if tag else None
-        )
+    date = (
+        tag.get("datetime")
+        if tag and tag.has_attr("datetime")
+        else tag.get("content")
+        if tag and tag.has_attr("content")
+        else tag.get_text(strip=True)
+        if tag
+        else None
     )
 
-    # Author extraction
+    # Author
     by = soup.select_one(".author-name, .byline, meta[name='author']")
-    author = by.get("content") if by and by.has_attr("content") else (
-        by.get_text(" ", strip=True) if by else None
+    author = (
+        by.get("content")
+        if by and by.has_attr("content")
+        else by.get_text(" ", strip=True)
+        if by
+        else None
     )
 
-    # PDF fallback if short or empty
+    # PDF fallback
     if not content or len(content.split()) < 40:
-        pdf_link = soup.find("a", href=lambda h: h and h.lower().endswith(".pdf"))
-        if pdf_link:
-            pdf_url = urljoin(base_url, pdf_link["href"])
-            print(f"📎 Found embedded PDF: {pdf_url}")
+        for link in soup.find_all("a", href=lambda h: h and h.lower().endswith(".pdf")):
+            pdf_url = urljoin(base_url, link["href"])
+            print(f"📎 Found PDF: {pdf_url}")
             pdf_resp = get_html(pdf_url)
-            if pdf_resp and ("application/pdf" in pdf_resp.headers.get("Content-Type", "") or pdf_url.endswith(".pdf")):
+            if pdf_resp and (
+                "application/pdf" in pdf_resp.headers.get("Content-Type", "")
+                or pdf_url.endswith(".pdf")
+            ):
                 pdf_text = extract_text_from_pdf(pdf_resp.content)
                 if len(pdf_text.split()) > len(content.split()):
                     content = pdf_text
-
-    # Check for multiple PDFs
-    if not content or len(content.split()) < 40:
-        pdf_links = soup.find_all("a", href=lambda h: h and h.lower().endswith(".pdf"))
-        for link in pdf_links:
-            pdf_url = urljoin(base_url, link["href"])
-            print(f"📎 Found embedded PDF: {pdf_url}")
-            pdf_resp = get_html(pdf_url)
-            if pdf_resp and ("application/pdf" in pdf_resp.headers.get("Content-Type", "") or pdf_url.endswith(".pdf")):
-                pdf_text = extract_text_from_pdf(pdf_resp.content)
-                if pdf_text:
-                    content += "\n\n" + pdf_text
 
     return {"title": title, "content": content, "date": date, "author": author}
 
@@ -135,31 +134,32 @@ def parse_html(resp, base_url):
 # Supabase Functions
 # ---------------------------
 def fetch_pending_articles():
-    print("📥 Fetching all pending records from press_releases...")
+    """Retrieve all pending records from Supabase press_releases table."""
+    print("📥 Fetching pending records from press_releases...")
     all_data = []
-    batch_size = 1000
     start = 0
+    batch_size = 1000
     while True:
-        end = start + batch_size - 1
         resp = (
             supabase.table("press_releases")
             .select("id, url, title, author, date")
             .eq("status", "pending")
-            .range(start, end)
+            .range(start, start + batch_size - 1)
             .execute()
         )
         data = resp.data or []
         all_data.extend(data)
-        print(f"  • Retrieved rows {start}–{end} (total: {len(all_data)})")
+        print(f"  • Retrieved rows {start}-{start + batch_size - 1} (total: {len(all_data)})")
         if len(data) < batch_size:
             break
         start += batch_size
-        time.sleep(0.2)
-    print(f"✅ Total pending records fetched: {len(all_data)}")
+        time.sleep(0.25)
+    print(f"✅ Total pending records: {len(all_data)}")
     return all_data
 
 
 def upload_clean_record(data):
+    """Insert cleaned article into press_releases_clean."""
     data["updated_at"] = datetime.now(UTC).isoformat()
     data["scraped_at"] = datetime.now(UTC).isoformat()
     supabase.table("press_releases_clean").upsert(data, on_conflict="url").execute()
@@ -171,7 +171,7 @@ def mark_complete(record_id):
 
 def mark_failed(record_id, reason=None):
     supabase.table("press_releases").update({"status": "failed"}).eq("id", record_id).execute()
-    print(f"❌ Marked as failed: ID {record_id} ({reason or 'no content'})")
+    print(f"❌ Marked failed ID {record_id} ({reason or 'no content'})")
 
 
 # ---------------------------
@@ -184,40 +184,42 @@ if __name__ == "__main__":
     print(f"Found {len(pending)} pending articles.\n")
 
     if not pending:
-        print("⚠️ No pending articles found — inner scraper exiting.")
-    else:
-        for row in pending:
-            url = row["url"]
-            print(f"🔍 Scraping: {url}")
+        print("⚠️ No pending records found — exiting.")
+        exit()
 
-            if not can_fetch(url):
-                mark_failed(row["id"], "robots.txt disallowed")
-                continue
+    for row in pending:
+        url = row["url"]
+        print(f"🔍 Scraping: {url}")
 
-            resp = get_html(url)
-            if not resp:
-                mark_failed(row["id"], "failed to fetch HTML")
-                continue
+        if not can_fetch(url):
+            mark_failed(row["id"], "robots.txt disallowed")
+            continue
 
-            parsed = parse_html(resp, url)
+        resp = get_html(url)
+        if not resp:
+            mark_failed(row["id"], "failed to fetch HTML")
+            continue
 
-            if not parsed.get("content") or len(parsed["content"].split()) < 20:
-                mark_failed(row["id"], "empty or too short")
-                continue
+        parsed = parse_html(resp, url)
 
-            clean_record = {
-                "id": row["id"],
-                "title": parsed.get("title") or row.get("title"),
-                "url": url,
-                "date": parsed.get("date") or row.get("date"),
-                "author": parsed.get("author") or row.get("author"),
-                "content": parsed.get("content"),
-                "status": "complete",
-            }
+        # Handle empty or too short content
+        if not parsed.get("content") or len(parsed["content"].split()) < 25:
+            mark_failed(row["id"], "empty or too short")
+            continue
 
-            upload_clean_record(clean_record)
-            mark_complete(row["id"])
-            print(f"✅ Scraped and saved: {url}")
-            time.sleep(1)
+        clean_record = {
+            "id": row["id"],
+            "title": parsed.get("title") or row.get("title"),
+            "url": url,
+            "date": parsed.get("date") or row.get("date"),
+            "author": parsed.get("author") or row.get("author"),
+            "content": parsed.get("content"),
+            "status": "complete",
+        }
+
+        upload_clean_record(clean_record)
+        mark_complete(row["id"])
+        print(f"✅ Scraped and saved: {url}")
+        time.sleep(1)
 
     print("\n🏁 Universal Inner Scraper Complete.")

@@ -1,28 +1,32 @@
+# streamlit_app3.py
 """
 USAA Fraud Research Dashboard
 ---------------------------------
 Analyzes financial compliance and fraud-related content from Federal Reserve
-articles and CFPB consumer complaints. Combines semantic storytelling, 
-domain tagging, and OpenAI summarization to provide insight into 
-fraud, compliance, and consumer protection risks.
+and CFPB press releases. Combines semantic storytelling, domain tagging,
+and OpenAI reasoning to provide insight into fraud, compliance, and risk trends.
 """
 
-import streamlit as st
-import pandas as pd
-import altair as alt
-from supabase import create_client
-from dotenv import load_dotenv
 import os
 import json
+import pandas as pd
+import altair as alt
+import streamlit as st
+from dotenv import load_dotenv
+from supabase import create_client
 
+# -------------------------------
+# Imports from your project
+# -------------------------------
 from src.data_loader import fetch_articles
 from src.sidebar_controls import sidebar_controls
-from src.semantic_storytelling import run_semantic_storytelling
-from src.openai_summary import summarize_text
-from src.openai_complaint_summary import summarize_complaint_data
 from src.library_viewer import render_library_viewer
 from src.usaa_logo import display_usaa_logo
-
+from src.topic_dashboard import render_topic_dashboard
+from src.AI.fraud_insights import generate_fraud_insights
+from src.AI.article_preprocessing import prepare_articles_for_ai
+from src.cfpb_loader import fetch_complaints
+from src.pattern_detector import detect_patterns
 
 # -----------------
 # Setup
@@ -31,7 +35,6 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
 
 # -----------------
 # Initialization
@@ -44,21 +47,37 @@ preset, year, keyword, insight_choice = sidebar_controls()
 default_query = "" if preset == "— none —" else preset
 st.info("Enter a query (or choose a preset in the sidebar), then click **Search**.")
 
+# -----------------
+# Sidebar: Topic Dashboard Button
+# -----------------
+st.sidebar.markdown("### Analysis Modules")
+if st.sidebar.button("📘 Topic Dashboard"):
+    st.session_state["show_topic_dashboard"] = True
+if st.session_state.get("show_topic_dashboard"):
+    render_topic_dashboard()
 
 # -----------------
-# Fetch Federal Reserve Articles
+# Fetch Articles
 # -----------------
 all_articles = fetch_articles()
 if all_articles.empty:
     st.warning("⚠️ No articles found in Supabase.")
 else:
-    st.success(f"✅ Loaded {len(all_articles)} Federal Reserve articles.")
-
+    st.success(f"✅ Loaded {len(all_articles)} press releases and policy articles.")
 
 # -----------------
-# Semantic Storytelling + OpenAI Summary
+# Load Complaints
 # -----------------
-st.markdown("### ⚙️ Semantic Exploration & Storytelling")
+complaints_df = fetch_complaints()
+if complaints_df.empty:
+    st.warning("⚠️ No complaints found in Supabase.")
+else:
+    st.success(f"✅ Loaded {len(complaints_df)} classified CFPB complaints.")
+
+# -----------------
+# SEMANTIC + INSIGHT ENGINE
+# -----------------
+st.markdown("### ⚙️ Semantic Exploration & Insight Engine")
 
 query_sentence = st.text_input(
     "Enter a question or sentence to explore:",
@@ -69,157 +88,182 @@ run_semantic = st.button("Run Semantic Search")
 
 if run_semantic and query_sentence.strip():
     df = all_articles.copy()
+
+    # ---- Filters ----
     if year.strip():
         try:
             y = int(year.strip())
-            df = df[df["year"] == y]
+            if "year" in df.columns:
+                df = df[df["year"] == y]
         except ValueError:
             st.warning("Year must be numeric (e.g., 2024). Ignoring year filter.")
+
     if keyword.strip():
         kw = keyword.lower()
         df = df[
             df["title"].astype(str).str.lower().str.contains(kw, na=False)
             | df["content"].astype(str).str.lower().str.contains(kw, na=False)
         ]
+
     if df.empty:
         st.warning("No articles match the selected filters.")
     else:
-        with st.spinner(f"Running semantic analysis for: '{query_sentence}'"):
-            patterns, top_articles = run_semantic_storytelling(df, query_sentence)
-            if isinstance(patterns, dict) and any(patterns.values()):
-                st.divider()
-                st.markdown("### 🧠 AI-Generated Summary (OpenAI)")
-                top_text = " ".join(top_articles["content"].fillna("").tolist()[:5])[:8000]
-                keyword_text = " ".join(list(patterns.get("keyword_counts", {}).keys()))
-                phrase_text = " ".join([p for p, _ in patterns.get("top_phrases", [])])
-                trend_data = patterns.get("yearly_trend")
-                if trend_data is not None and not trend_data.empty:
-                    recent_trends = trend_data.tail(3).to_dict(orient="records")
-                    trend_summary = f"Recent yearly trends in mentions: {recent_trends}."
-                else:
-                    trend_summary = "No clear yearly trend data detected."
-                focus_map = {
-                    "Trends and patterns over time": "Focus on trend shifts and anomalies.",
-                    "Emerging risk areas": "Highlight newly emerging fraud risks or tactics.",
-                    "Policy and regulatory tone": "Emphasize regulatory tone and enforcement sentiment.",
-                    "Consumer or institutional impact": "Focus on who is affected and operational implications.",
-                }
-                focus_note = focus_map.get(insight_choice, "")
-                summary_input = (
-                    f"User question: {query_sentence}\n"
-                    f"{focus_note}\n\n"
-                    f"--- Article Excerpts ---\n{top_text}\n\n"
-                    f"--- Keywords ---\n{keyword_text}\n\n"
-                    f"--- Common Phrases ---\n{phrase_text}\n\n"
-                    f"--- Trend Summary ---\n{trend_summary}\n\n"
-                    "Provide a cohesive, paragraph-style analytical summary "
-                    "focusing only on fraud, compliance, or financial misconduct. "
-                    "Include statistics directly tied to the topic."
-                )
-                summary_text = summarize_text(summary_input)
-                st.write(summary_text)
-            else:
-                st.warning("No meaningful patterns detected for summarization.")
-else:
-    st.info("Enter a question or choose a preset, then click **Run Semantic Search**.")
+        with st.spinner(f"Analyzing '{query_sentence}' across articles and complaints..."):
 
+            # Step 1: Prepare articles for AI
+            clean_articles = prepare_articles_for_ai(df.to_dict(orient="records"))
 
-# -----------------
-# CFPB Complaint Data Integration (AI-driven)
-# -----------------
-st.divider()
-st.markdown("### 🧭 Consumer Complaint Trends (CFPB Integration)")
+            # Step 2: Use real complaints dataset
+            complaints_data = complaints_df.to_dict(orient="records")
 
-try:
-    cfpb_resp = supabase.table("cfpb_complaints").select("*").execute()
-    complaints = pd.DataFrame(cfpb_resp.data or [])
-
-    if complaints.empty:
-        st.info("No CFPB complaint data found in Supabase.")
-    else:
-        st.success(f"✅ Loaded {len(complaints)} complaints from CFPB dataset.")
-
-        for col in ["domain_label", "state", "product"]:
-            if col in complaints.columns:
-                complaints[col] = complaints[col].astype(str).fillna("Unknown")
-
-        stats = {
-            "total_complaints": len(complaints),
-            "by_domain": complaints["domain_label"].value_counts().to_dict()
-            if "domain_label" in complaints.columns else {},
-            "by_state": complaints["state"].value_counts().head(10).to_dict()
-            if "state" in complaints.columns else {},
-            "by_product": complaints["product"].value_counts().head(10).to_dict()
-            if "product" in complaints.columns else {},
-        }
-
-        date_range = (
-            complaints["date_received"].min() if "date_received" in complaints.columns else None,
-            complaints["date_received"].max() if "date_received" in complaints.columns else None,
-        )
-
-        with st.spinner("Generating AI-driven CFPB summary and visuals..."):
-            ai_output = summarize_complaint_data(stats, date_range)
-            st.markdown("### 🧠 AI-Generated Complaint Summary")
-            st.write(ai_output.get("summary_text", "No summary generated."))
-
-        # -----------------
-        # Visualization Section (Static)
-        # -----------------
-        st.markdown("### 📊 CFPB Complaint Visuals")
-
-        if "domain_label" in complaints.columns:
-            domain_chart = (
-                alt.Chart(complaints)
-                .mark_bar()
-                .encode(
-                    x=alt.X("domain_label:N", sort="-y", title="Fraud/Compliance Domain"),
-                    y=alt.Y("count():Q", title="Number of Complaints"),
-                    color=alt.Color("domain_label:N", title="Domain"),
-                    tooltip=["domain_label", "count()"],
-                )
-                .properties(title="Complaint Volume by Domain", height=400)
+            # Step 3: Generate AI insights
+            result = generate_fraud_insights(
+                articles=clean_articles,
+                complaints=complaints_data,
+                user_query=query_sentence,
+                date_range=("N/A", "N/A")
             )
-            st.altair_chart(domain_chart, use_container_width=True)
 
-        if "state" in complaints.columns:
-            geo_chart = (
-                alt.Chart(complaints)
-                .mark_bar()
-                .encode(
-                    y=alt.Y("state:N", sort="-x", title="State"),
-                    x=alt.X("count():Q", title="Complaint Count"),
-                    color=alt.Color("state:N", title="State"),
-                    tooltip=["state", "count()"],
-                )
-                .properties(title="Complaints by State", height=500)
-            )
-            st.altair_chart(geo_chart, use_container_width=True)
+            # Step 4: Detect fraud patterns from articles
+            auto = detect_patterns(df, focus_term="fraud")
 
-        if "date_received" in complaints.columns:
-            complaints["date_received"] = pd.to_datetime(complaints["date_received"], errors="coerce")
-            time_chart = (
-                alt.Chart(complaints)
+        # -----------------------------
+        # DISPLAY UNIFIED AI SUMMARY
+        # -----------------------------
+        st.divider()
+        st.markdown("### 🧠 AI-Generated Unified Fraud Insight")
+        st.write(result.get("summary_text", "No insight generated."))
+        st.divider()
+
+        # -----------------------------
+        # ARTICLE-BASED YEARLY TREND
+        # -----------------------------
+        st.markdown("### 📊 Fraud Mentions Over Time (Articles)")
+        trend = auto.get("yearly_trend", pd.DataFrame())
+
+        if not trend.empty:
+            trend.columns = [c.strip() for c in trend.columns]
+            if "Year" not in trend.columns:
+                trend["Year"] = range(1, len(trend) + 1)
+
+            trend["Year"] = pd.to_numeric(trend["Year"], errors="coerce").fillna(0).astype(int)
+            y_cols = [c for c in trend.columns if c.lower() != "year"]
+            y_col = y_cols[0] if y_cols else "Mentions"
+
+            trend = trend.dropna(subset=["Year"])
+            trend = trend[trend["Year"] > 0]
+
+            chart = (
+                alt.Chart(trend)
                 .mark_line(point=True)
                 .encode(
-                    x=alt.X("yearmonth(date_received):T", title="Date"),
-                    y=alt.Y("count():Q", title="Complaint Count"),
-                    color=alt.Color("domain_label:N", title="Domain"),
-                    tooltip=["yearmonth(date_received)", "domain_label", "count()"],
+                    x=alt.X("Year:Q", title="Year"),
+                    y=alt.Y(f"{y_col}:Q", title="Mentions"),
+                    tooltip=["Year", y_col],
                 )
-                .properties(title="Complaint Trends Over Time", height=350)
+                .properties(title="Fraud Mentions in Articles by Year", height=360)
             )
-            st.altair_chart(time_chart, use_container_width=True)
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.info("No yearly trend data available.")
 
-except Exception as e:
-    st.warning(f"⚠️ Unable to load CFPB complaint data: {e}")
+        # -----------------------------
+        # AI-SUGGESTED VISUALIZATIONS
+        # -----------------------------
+        st.markdown("### 🤖 AI-Suggested Visualizations (Articles + Complaints)")
+        visuals = result.get("visual_instructions", {}).get("charts", [])
 
+        if not visuals:
+            st.info("No AI-generated visual instructions available for this query.")
+        else:
+            for viz in visuals:
+                try:
+                    vtype = viz.get("type", "").lower()
+                    title = viz.get("title", "Chart")
+                    x = viz.get("x", "")
+                    y = viz.get("y", "")
+                    color = viz.get("color", None)
+
+                    df_viz = complaints_df.copy()
+
+                    if "date" in x.lower():
+                        df_viz["date_received"] = pd.to_datetime(df_viz["date_received"], errors="coerce")
+                        df_viz = (
+                            df_viz.groupby(df_viz["date_received"].dt.to_period("M"))
+                            .size()
+                            .reset_index(name="complaint_count")
+                        )
+                        df_viz["date_received"] = df_viz["date_received"].astype(str)
+                        x, y = "date_received", "complaint_count"
+
+                    elif "state" in x.lower():
+                        df_viz = df_viz.groupby("state").size().reset_index(name="complaint_count")
+                        x, y = "state", "complaint_count"
+
+                    elif "issue" in x.lower():
+                        df_viz = df_viz.groupby("issue").size().reset_index(name="complaint_count")
+                        x, y = "issue", "complaint_count"
+
+                    elif "company" in x.lower():
+                        df_viz = (
+                            df_viz.groupby("company").size().reset_index(name="complaint_count")
+                        ).sort_values("complaint_count", ascending=False).head(15)
+                        x, y = "company", "complaint_count"
+
+                    else:
+                        df_viz = (
+                            df_viz.groupby("domain_label").size().reset_index(name="complaint_count")
+                        )
+                        x, y = "domain_label", "complaint_count"
+
+                    base = alt.Chart(df_viz).properties(title=title, height=380)
+
+                    if vtype in ("bar", "stacked_bar"):
+                        chart = base.mark_bar().encode(
+                            x=alt.X(f"{x}:N", title=x),
+                            y=alt.Y(f"{y}:Q", title=y),
+                            color=alt.Color(color or x, title=color or x),
+                            tooltip=[x, y],
+                        )
+                    elif vtype == "line":
+                        chart = base.mark_line(point=True).encode(
+                            x=alt.X(f"{x}:N", title=x),
+                            y=alt.Y(f"{y}:Q", title=y),
+                            tooltip=[x, y],
+                        )
+                    elif vtype == "heatmap":
+                        chart = base.mark_rect().encode(
+                            x=alt.X(f"{x}:N", title=x),
+                            y=alt.Y(f"{y}:N", title=y),
+                            color=alt.Color(f"{y}:Q", title="Intensity"),
+                            tooltip=[x, y],
+                        )
+                    elif vtype == "donut":
+                        donut_df = df_viz.copy()
+                        chart = (
+                            alt.Chart(donut_df)
+                            .mark_arc(innerRadius=60)
+                            .encode(
+                                theta=alt.Theta(f"{y}:Q", stack=True),
+                                color=alt.Color(f"{x}:N", title=x),
+                                tooltip=[x, y],
+                            )
+                        )
+                    else:
+                        st.info(f"Chart type '{vtype}' not supported yet.")
+                        continue
+
+                    st.altair_chart(chart, use_container_width=True)
+                except Exception as e:
+                    st.warning(f"⚠️ Could not render '{viz.get('title', '')}': {e}")
+
+else:
+    st.info("Enter a query and click **Run Semantic Search** to begin.")
 
 # -----------------
 # Library Viewer Integration
 # -----------------
 if st.sidebar.button("📚 Open Library Viewer"):
     st.session_state["view_library"] = True
-
 if st.session_state.get("view_library"):
     render_library_viewer()

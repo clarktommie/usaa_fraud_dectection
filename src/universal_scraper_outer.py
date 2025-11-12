@@ -16,14 +16,13 @@ SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-USER_AGENT = "Tommie-Clark-Fraud-Scraper/2.0 (+your-email@example.com)"
+USER_AGENT = "Tommie-Clark-Fraud-Scraper/2.7 (+your-email@example.com)"
 HEADERS = {"User-Agent": USER_AGENT}
 
 # ---------------------------
-# Helpers
+# Helper Functions
 # ---------------------------
 def can_scrape(url: str) -> bool:
-    """Check robots.txt before scraping."""
     base = "/".join(url.split("/")[:3])
     robots_url = urljoin(base, "/robots.txt")
     rp = urllib.robotparser.RobotFileParser()
@@ -37,12 +36,19 @@ def can_scrape(url: str) -> bool:
         print(f"⚠️ Could not read robots.txt for {base} — assuming allowed.")
         return True
 
+def safe_get(url: str, timeout: int = 25):
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=timeout)
+        resp.raise_for_status()
+        return resp
+    except Exception as e:
+        print(f"⚠️ GET failed for {url}: {e}")
+        return None
 
 # ---------------------------
-# Federal Reserve Recursive Scraper
+# Federal Reserve Scraper
 # ---------------------------
 def scrape_federal_reserve():
-    """Scrape all Federal Reserve press releases (recursive through yearly pages)."""
     base = "https://www.federalreserve.gov"
     start_url = f"{base}/newsevents/pressreleases.htm"
     all_links = set()
@@ -53,37 +59,36 @@ def scrape_federal_reserve():
         print("🚫 Skipping Federal Reserve (robots.txt blocked)")
         return []
 
-    resp = requests.get(start_url, headers=HEADERS, timeout=25)
-    soup = BeautifulSoup(resp.text, "html.parser")
+    resp = safe_get(start_url)
+    if not resp:
+        return []
 
+    soup = BeautifulSoup(resp.text, "html.parser")
     index_links = [
         urljoin(base, a["href"])
         for a in soup.select("a[href*='/newsevents/pressreleases/']")
-        if a["href"].endswith(".htm")
+        if a.get("href", "").endswith(".htm")
     ]
     print(f"📄 Found {len(index_links)} yearly/topic index pages")
 
     for link in index_links:
-        try:
-            sub_resp = requests.get(link, headers=HEADERS, timeout=25)
-            sub_soup = BeautifulSoup(sub_resp.text, "html.parser")
+        sub_resp = safe_get(link)
+        if not sub_resp:
+            continue
+        sub_soup = BeautifulSoup(sub_resp.text, "html.parser")
+        sub_links = [
+            urljoin(base, a["href"])
+            for a in sub_soup.select("a[href*='/newsevents/pressreleases/']")
+            if any(a.get("href", "").endswith(ext) for ext in [".htm", ".pdf"])
+        ]
+        all_links.update(sub_links)
+        print(f"  • {link} → {len(sub_links)} releases")
+        time.sleep(0.15)
 
-            sub_links = [
-                urljoin(base, a["href"])
-                for a in sub_soup.select("a[href*='/newsevents/pressreleases/']")
-                if any(a["href"].endswith(ext) for ext in [".htm", ".pdf"])
-            ]
-            all_links.update(sub_links)
-            print(f"  • {link} → {len(sub_links)} releases")
-            time.sleep(0.5)
-        except Exception as e:
-            print(f"⚠️ Failed to scrape {link}: {e}")
+    print(f"📰 Total unique Federal Reserve URLs: {len(all_links)}")
 
-    print(f"📰 Total unique Federal Reserve release URLs: {len(all_links)}")
-
-    records = []
-    for u in sorted(all_links):
-        records.append({
+    return [
+        {
             "title": None,
             "url": u,
             "date": None,
@@ -92,9 +97,9 @@ def scrape_federal_reserve():
             "source": "FederalReserve",
             "status": "pending",
             "updated_at": datetime.now(UTC).isoformat(),
-        })
-    return records
-
+        }
+        for u in sorted(all_links)
+    ]
 
 # ---------------------------
 # Bank Policy Institute Scraper
@@ -110,23 +115,22 @@ def scrape_bpi():
         print("🚫 Skipping BPI (robots.txt blocked)")
         return []
 
-    try:
-        resp = requests.get(start_url, headers=HEADERS, timeout=25)
-        soup = BeautifulSoup(resp.text, "html.parser")
-        links = [
-            urljoin(base, a["href"])
-            for a in soup.select("a[href]")
-            if "category" in a["href"] or "issues" in a["href"]
-        ]
-        all_links.update(links)
-    except Exception as e:
-        print(f"⚠️ BPI scrape error: {e}")
+    resp = safe_get(start_url)
+    if not resp:
+        return []
+    soup = BeautifulSoup(resp.text, "html.parser")
+
+    links = [
+        urljoin(base, a["href"])
+        for a in soup.select("a[href]")
+        if ("category" in (a.get("href") or "")) or ("issues" in (a.get("href") or ""))
+    ]
+    all_links.update(links)
 
     print(f"📰 Total BPI links collected: {len(all_links)}")
 
-    records = []
-    for u in sorted(all_links):
-        records.append({
+    return [
+        {
             "title": None,
             "url": u,
             "date": None,
@@ -135,40 +139,67 @@ def scrape_bpi():
             "source": "BPI",
             "status": "pending",
             "updated_at": datetime.now(UTC).isoformat(),
-        })
-    return records
-
+        }
+        for u in sorted(all_links)
+    ]
 
 # ---------------------------
-# CFPB Activity Log Scraper
+# CFPB Press Releases Scraper (fixed)
 # ---------------------------
-def scrape_cfpb_activity_log():
+def scrape_cfpb_press_releases():
     base = "https://www.consumerfinance.gov"
-    start_url = f"{base}/activity-log/"
+    root = f"{base}/about-us/newsroom"
+    all_links = set()
 
-    print("🌐 Scraping CFPB Activity Log...")
+    print("🌐 Scraping CFPB Press Releases (Full Pagination)...")
 
-    if not can_scrape(start_url):
+    if not can_scrape(f"{root}/?categories=press-release"):
         print("🚫 Skipping CFPB (robots.txt blocked)")
         return []
 
-    all_links = set()
-    try:
-        resp = requests.get(start_url, headers=HEADERS, timeout=25)
+    page = 1
+    max_pages = 100
+    while page <= max_pages:
+        if page == 1:
+            url = f"{root}/?categories=press-release"
+        else:
+            url = f"{root}/?page={page}&categories=press-release"
+
+        print(f"🔄 CFPB page {page}: {url}")
+        resp = safe_get(url, timeout=30)
+        if not resp:
+            print(f"❌ Could not fetch page {page} — stopping.")
+            break
+
         soup = BeautifulSoup(resp.text, "html.parser")
+        # extract links for press-release cards
+        cards = soup.select("a.o-card__link[href]")
+        if not cards:
+            cards = soup.select("a[href*='/about-us/newsroom/']")
 
-        for item in soup.select("li.o-post-list__item a[href]"):
-            href = item["href"]
-            full = urljoin(base, href)
-            all_links.add(full)
-        print(f"📰 Total CFPB activity links collected: {len(all_links)}")
+        page_links = []
+        for a in cards:
+            href = a.get("href")
+            if not href:
+                continue
+            full = urljoin(base, href.split("?")[0])
+            if "/about-us/newsroom/" in full and "/about-us/newsroom/?categories=" not in full:
+                page_links.append(full)
+        # dedupe
+        page_links = list(dict.fromkeys(page_links))
+        if not page_links:
+            print(f"⚠️ No press-release links found on page {page} — stopping.")
+            break
 
-    except Exception as e:
-        print(f"⚠️ CFPB scrape error: {e}")
+        all_links.update(page_links)
+        print(f"  • Found {len(page_links)} links on page {page}")
+        page += 1
+        time.sleep(0.3)
 
-    records = []
-    for u in sorted(all_links):
-        records.append({
+    print(f"📰 Total CFPB press-release links collected: {len(all_links)}")
+
+    return [
+        {
             "title": None,
             "url": u,
             "date": None,
@@ -177,9 +208,9 @@ def scrape_cfpb_activity_log():
             "source": "ConsumerFinanceGov",
             "status": "pending",
             "updated_at": datetime.now(UTC).isoformat(),
-        })
-    return records
-
+        }
+        for u in sorted(all_links)
+    ]
 
 # ---------------------------
 # Upload to Supabase
@@ -191,12 +222,11 @@ def upload_to_supabase(records):
     print(f"📤 Uploading {len(records)} records to Supabase...")
     batch_size = 200
     for i in range(0, len(records), batch_size):
-        batch = records[i:i+batch_size]
+        batch = records[i:i + batch_size]
         supabase.table("press_releases").upsert(batch, on_conflict="url").execute()
-        print(f"Uploaded batch {i // batch_size + 1}")
-        time.sleep(0.5)
+        print(f"✅ Uploaded batch {i // batch_size + 1} ({len(batch)} records)")
+        time.sleep(0.15)
     print("✅ All records uploaded successfully.")
-
 
 # ---------------------------
 # Main
@@ -206,22 +236,18 @@ if __name__ == "__main__":
 
     all_records = []
 
-    # Federal Reserve
     fed_records = scrape_federal_reserve()
     print(f"✅ Federal Reserve: {len(fed_records)} records scraped.\n")
     all_records.extend(fed_records)
 
-    # Bank Policy Institute
     bpi_records = scrape_bpi()
     print(f"✅ BPI: {len(bpi_records)} records scraped.\n")
     all_records.extend(bpi_records)
 
-    # CFPB Activity Log
-    cfpb_records = scrape_cfpb_activity_log()
+    cfpb_records = scrape_cfpb_press_releases()
     print(f"✅ CFPB: {len(cfpb_records)} records scraped.\n")
     all_records.extend(cfpb_records)
 
-    # Upload all
     print(f"🧾 Total scraped across all sources: {len(all_records)}")
     upload_to_supabase(all_records)
     print("🏁 Universal Outer Scraper Complete.")

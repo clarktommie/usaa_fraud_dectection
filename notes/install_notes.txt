@@ -88,3 +88,18 @@ language sql stable as $$
 $$;
 
 ## make sure to format date column
+
+
+insert into press_releases_fraud
+select *
+from press_releases_clean
+where title ilike '%fraud%'
+   or title ilike '%scam%'
+   or title ilike '%identity%'
+   or title ilike '%phishing%'
+   or title ilike '%cyber%'
+   or title ilike '%impersonation%'
+   or content ilike '%fraud%'
+   or content ilike '%scam%'
+   or content ilike '%identity%'
+   or content ilike '%cyber%';
