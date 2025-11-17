@@ -169,10 +169,10 @@ if run_semantic and query_sentence.strip():
                 alt.Chart(fraud_trends)
                 .mark_bar(cornerRadiusTopLeft=8, cornerRadiusTopRight=8)
                 .encode(
-                    x=alt.X("count:Q", title="Mentions"),
+                    x=alt.X("mentions:Q", title="Mentions"),
                     y=alt.Y("trend:N", sort="-x", title=None),
                     color=alt.Color("trend:N", scale=alt.Scale(scheme="purples")),
-                    tooltip=["trend", "count"],
+                    tooltip=["trend", "mentions"],
                 )
                 .properties(height=250)
             )
