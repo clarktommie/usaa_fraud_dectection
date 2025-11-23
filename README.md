@@ -57,15 +57,42 @@ OPENAI_API_KEY=your_openai_key
 ```
 .
 ├── data/
+│   └── cache/
+│       ├── article_embeddings.npz
+│       └── article_metadata.pkl
 ├── images/
+│   ├── streamlit_dashboard.png
+│   ├── dashboard_demo.gif
+│   └── ChatGPT Image Nov 4, 2025, 07_57_35 AM.png
 ├── notebooks/
+│   └── fraud_exploratory.ipynb
+├── notes/
+│   ├── embeddings_demo.ipynb
+│   ├── install_notes.txt
+│   └── USAA_Fraud_Detection_Project_Timeline.pdf
 ├── src/
 │   ├── ai/
+│   │   ├── article_preprocessing.py
+│   │   ├── complaint_preprocessing.py
+│   │   ├── fraud_insights.py
+│   │   └── query_filter.py
 │   ├── article_index.py
+│   ├── cfpb_loader.py
 │   ├── data_loader.py
+│   ├── library_viewer.py
+│   ├── openai_summary.py
+│   ├── semantic_library.py
+│   ├── sidebar_controls.py
+│   ├── topic_dashboard.py
 │   ├── topic_keyword_utils.py
-│   └── ...
-└── streamlit_app3.py
+│   ├── topic_visuals.py
+│   ├── universal_scraper_inner.py
+│   ├── universal_scraper_outer.py
+│   └── usaa_logo.py
+├── streamlit_app3.py
+├── modal_app.py
+├── README.md
+└── pyproject.toml
 ```
 
 ---
