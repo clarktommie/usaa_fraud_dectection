@@ -25,25 +25,22 @@ Public functions:
 
 from __future__ import annotations
 
-import re
-import math
-import json
 import itertools
-from typing import Any, Dict, List, Optional, Tuple
-
-import pandas as pd
-import numpy as np
+import json
+import math
+import os
+import re
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-# -----------------------------
-# Optional semantic embeddings
-# -----------------------------
-_EMBEDDER = None
-try:
-    from sentence_transformers import SentenceTransformer, util as st_util
-    _EMBEDDER = SentenceTransformer("BAAI/bge-small-en-v1.5")
-except Exception:
-    _EMBEDDER = None
+import numpy as np
+import pandas as pd
+from dotenv import load_dotenv
+from openai import OpenAI
+
+load_dotenv()
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+EMBED_MODEL = "text-embedding-3-small"
 
 
 # =========================
@@ -95,6 +92,48 @@ US_STATE_ABBR = {
 }
 
 
+def _parse_embedding(value) -> Optional[Sequence[float]]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return None
+        if isinstance(parsed, list):
+            return parsed
+    return None
+
+
+def _normalize_vector(vec: Sequence[float]) -> Optional[np.ndarray]:
+    arr = np.array(vec, dtype=float)
+    norm = np.linalg.norm(arr)
+    if norm == 0 or np.isnan(norm):
+        return None
+    return arr / norm
+
+
+def _embed_text(text: str) -> Optional[np.ndarray]:
+    if not text:
+        return None
+    try:
+        resp = openai_client.embeddings.create(model=EMBED_MODEL, input=text)
+    except Exception:
+        return None
+    return _normalize_vector(resp.data[0].embedding)
+
+
+def _vector_from_value(value) -> Optional[np.ndarray]:
+    if isinstance(value, np.ndarray):
+        return _normalize_vector(value)
+    if isinstance(value, (list, tuple)):
+        return _normalize_vector(value)
+    parsed = _parse_embedding(value)
+    if parsed is None:
+        return None
+    return _normalize_vector(parsed)
+
+
 # =========================
 # Utility Functions
 # =========================
@@ -141,16 +180,22 @@ def _keyword_relevance(text: str, query: str) -> float:
     return inter / (len(qset) ** 0.5)
 
 
-def _embed_relevance(text: str, query: str) -> float:
-    if _EMBEDDER is None:
+def _semantic_or_keyword_relevance(
+    text: str,
+    query: str,
+    query_vec: Optional[np.ndarray],
+    doc_vec: Optional[np.ndarray],
+) -> float:
+    if query_vec is None:
         return _keyword_relevance(text, query)
-    try:
-        vq = _EMBEDDER.encode([query], normalize_embeddings=True)
-        vt = _EMBEDDER.encode([text], normalize_embeddings=True)
-        sim = float(np.dot(vq, vt.T)[0][0])
-        return (sim + 1.0) / 2.0
-    except Exception:
-        return _keyword_relevance(text, query)
+
+    if doc_vec is None:
+        doc_vec = _embed_text(text[:2000])
+        if doc_vec is None:
+            return _keyword_relevance(text, query)
+
+    sim = float(np.dot(query_vec, doc_vec))
+    return (sim + 1.0) / 2.0
 
 
 # =========================
@@ -325,6 +370,8 @@ def _normalize_articles_df(df: pd.DataFrame) -> pd.DataFrame:
         df["content"] = ""
     if "date" not in df.columns:
         df["date"] = None
+    if "embedding" not in df.columns:
+        df["embedding"] = None
 
     df["title"] = df["title"].astype(str)
     df["url"] = df["url"].astype(str)
@@ -349,6 +396,7 @@ def search_quantitative_articles(
 
     rows = []
     all_facts = []
+    query_vec = _embed_text(user_query)
 
     for _, row in df.iterrows():
         text = _safe_str(row.get("content", ""))
@@ -362,7 +410,13 @@ def search_quantitative_articles(
         if qscore < min_quant_score:
             continue
 
-        rel = _embed_relevance(f"{title}\n\n{text[:2000]}", user_query)
+        doc_vec = _vector_from_value(row.get("embedding"))
+        rel = _semantic_or_keyword_relevance(
+            f"{title}\n\n{text[:2000]}",
+            user_query,
+            query_vec,
+            doc_vec,
+        )
 
         rows.append({
             "id": row["id"],

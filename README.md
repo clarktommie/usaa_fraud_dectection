@@ -26,7 +26,7 @@ The system follows a full **Extract–Transform–Load (ETL)** process:
 |--------|--------------|-------------|
 | **Extract** | Collects press releases and PDF documents from the Federal Reserve Board and related regulators. | `requests`, `BeautifulSoup4`, `PyPDF2` |
 | **Transform** | Cleans raw text, standardizes date formats (`date_standard`), merges title + content, and extracts metadata. | `pandas`, `re`, `datetime` |
-| **Load** | Uploads structured data into **Supabase**, storing both article text and embeddings for similarity search. | `supabase-py`, `fastembed`, `SentenceTransformer` |
+| **Load** | Uploads structured data into **Supabase**, storing both article text and embeddings for similarity search. | `supabase-py`, `openai` |
 
 ### 📊 ETL Workflow
 ```
@@ -54,7 +54,7 @@ This system integrates multiple *data and model modalities*, making it a **multi
 |-----------|-------------|----------|
 | **Textual (unstructured)** | Raw regulatory press releases and PDF text content. | Extracted text from Federal Reserve sources |
 | **Structured/tabular** | Metadata such as `date`, `author`, and similarity scores. | Supabase table fields and Pandas DataFrames |
-| **Vector/semantic** | High-dimensional embeddings used for semantic similarity and clustering. | SentenceTransformer + Supabase vector search |
+| **Vector/semantic** | High-dimensional embeddings used for semantic similarity and clustering. | OpenAI embeddings + Supabase vector search |
 | **LLM-generated (OpenAI)** | Contextual summaries and narrative insights. | GPT-generated insights via `openai_summary.py` |
 | **Visual** | Streamlit-based charts showing keyword frequencies and yearly trends. | Line and bar charts in `streamlit_app3.py` |
 
@@ -72,7 +72,7 @@ Together, these layers enable semantic storytelling across multiple information 
 
 2. **Data Storage**
    - Supabase acts as both the **relational database** and **vector store**.  
-   - Articles are embedded using **SentenceTransformer** (`all-MiniLM-L6-v2`) and stored as high-dimensional vectors for similarity search.
+   - Articles are embedded using **OpenAI `text-embedding-3-small`** and stored as high-dimensional vectors for similarity search.
 
 3. **Semantic Storytelling**
    - A **semantic model** ranks articles by relevance to a user query.  
@@ -92,7 +92,8 @@ Together, these layers enable semantic storytelling across multiple information 
 ## Key Features
 ✅ Automated regulatory press release scraping  
 ✅ Supabase integration for centralized storage and embeddings  
-✅ SentenceTransformer-based semantic retrieval  
+✅ OpenAI embedding-based semantic retrieval  
+✅ Local cached embedding index for fast topic searches  
 ✅ Domain-specific keyword and phrase extraction  
 ✅ Yearly trend visualization for any detected focus word  
 ✅ OpenAI-driven contextual storytelling summaries  
@@ -104,7 +105,6 @@ Together, these layers enable semantic storytelling across multiple information 
 - **Python 3.12**  
 - **Streamlit** – interactive dashboard interface  
 - **Supabase** – data storage and vector similarity search  
-- **SentenceTransformer (all-MiniLM-L6-v2)** – semantic embeddings  
 - **OpenAI GPT Models** – summarization and focus-word reasoning  
 - **Pandas**, **Matplotlib** – analytics and visualization  
 - **BeautifulSoup4**, **Requests**, **PyPDF2** – data scraping and extraction  
@@ -141,6 +141,13 @@ uv run streamlit run streamlit_app3.py
 ```
 
 The app will open in your browser at `http://localhost:8501`.
+
+#### (Optional) Refresh the local embedding index
+Run this when new articles are added so the cached vectors stay up to date:
+```bash
+uv run python -m src.article_index
+```
+Set `ARTICLE_INDEX_TTL_HOURS` (default `12`) to control how long the cached vectors are considered fresh before automatically rebuilding from Supabase.
 
 ---
 
