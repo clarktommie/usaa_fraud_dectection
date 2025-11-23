@@ -15,9 +15,9 @@
 | Step | Command |
 | --- | --- |
 | Create environment | ```bash
-uv venv
+uv venv .venv
 source .venv/bin/activate
-uv pip install -r requirements.txt
+uv sync
 ``` |
 | Launch dashboard | ```bash
 uv run streamlit run streamlit_app3.py
@@ -41,7 +41,7 @@ OPENAI_API_KEY=your_openai_key
 
 ## Project Snapshot
 - One-click UV setup, scripted scraper, and Streamlit UI for compliance intelligence.  
-- Supabase stores structured press releases plus OpenAI embeddings for semantic recall.  
+- Supabase stores structured press releases from Federal Reserve + CFPB plus OpenAI embeddings for semantic recall.  
 - Storytelling view surfaces focus terms, multi-year trends, and GPT-generated insights for analysts.
 
 ### Why It Matters
@@ -50,11 +50,8 @@ OPENAI_API_KEY=your_openai_key
 - **Reusable pipeline** – Parameterized ETL, embeddings, and library components can be adapted to other institutions with minimal change.
 
 ### Visual Overview
-![Streamlit Dashboard](images/ChatGPT Image Nov 4, 2025, 07_57_35 AM.png)
+![Streamlit Dashboard](images/streamlit_dashboard.png)
 *Streamlit application (`streamlit_app3.py`) highlighting focus-word filters, yearly trend chart, and article summaries.*
-
-![Animated Dashboard Demo](images/dashboard_demo.gif)
-*Animated walk-through of the Streamlit experience, showing how analysts pivot from filters to narrative cards.*
 
 ### Folder Structure
 ```
@@ -120,7 +117,7 @@ This minimal example mirrors `streamlit_app3.py`: cached Supabase data drives in
 ---
 
 ## System Overview
-1. **Data Collection** – Scrapes Federal Reserve (HTML) and PDF releases, standardizes dates, and merges titles/content.  
+1. **Data Collection** – Scrapes Federal Reserve and CFPB (HTML/PDF) releases, standardizes dates, and merges titles/content.  
 2. **Data Storage** – Supabase hosts the relational data and embeddings created with `text-embedding-3-small`.  
 3. **Semantic Storytelling** – Query-aware similarity search pulls contextually relevant press releases, identifies a focus word, and aggregates yearly metrics.  
 4. **AI Summaries** – OpenAI GPT models convert article clusters into contextual narratives for analysts.  
@@ -172,4 +169,5 @@ Future improvements: continuous scraping schedule, fine-tuned domain embeddings,
 ---
 
 ## Acknowledgment
-Developed for **DTSC 3602: Data Science Project at UNC Charlotte**, demonstrating machine learning, LLM integration, and visual analytics for regulatory insight automation.
+Developed for **DTSC 3602: Data Science Project at UNC Charlotte**, demonstrating machine learning, LLM integration, and visual analytics for regulatory insight automation.  
+Drafted with assistance from **ChatGPT** for documentation polish and coding assistance.
