@@ -1,59 +1,50 @@
 # USAA Fraud Detection
-**Semantic monitoring for regulatory press releases**
+Semantic monitoring for regulatory press releases
 
-> Automated ETL, embeddings, and storytelling dashboards that highlight emerging compliance and fraud risks for UNC Charlotte's DTSC 3602 project.
+## Overview
+Automated ETL, embeddings, and storytelling dashboards that highlight emerging compliance and fraud risks for UNC Charlotte's DTSC 3602 project.
 
 ## Authors
-- Jack Resnick  
-- Andreas Cedron  
-- Tommie Clark  
-- Ty Warren  
-
----
+- Jack Resnick
+- Andreas Cedron
+- Tommie Clark
+- Ty Warren
 
 ## Quick Start
 | Step | Command |
 | --- | --- |
-| Create environment | ```bash
-uv venv .venv
-source .venv/bin/activate
-uv sync
-``` |
-| Launch dashboard | ```bash
-uv run streamlit run streamlit_app3.py
-``` |
+| Create environment | ```bash\nuv venv .venv\nsource .venv/bin/activate\nuv sync\n``` |
+| Launch dashboard | ```bash\nuv run streamlit run streamlit_app3.py\n``` |
 
 ### Required Environment Variables
 | Key | Purpose | Example |
 | --- | --- | --- |
-| `SUPABASE_URL` | Supabase project REST endpoint | `https://xyzcompany.supabase.co` |
-| `SUPABASE_KEY` | Supabase service/anon key | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` |
-| `OPENAI_API_KEY` | Embedding + summary API key | `sk-abc123` |
+| SUPABASE_URL | Supabase project REST endpoint | https://xyzcompany.supabase.co |
+| SUPABASE_KEY | Supabase service/anon key | eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... |
+| OPENAI_API_KEY | Embedding and summary API key | sk-abc123 |
 
-Create a `.env` file (or copy to `example.env`) and populate the values:
+Create a `.env` file and populate the values:
 ```bash
 SUPABASE_URL=your_supabase_url
 SUPABASE_KEY=your_supabase_anon_key
 OPENAI_API_KEY=your_openai_key
 ```
 
----
-
 ## Project Snapshot
-- One-click UV setup, scripted scraper, and Streamlit UI for compliance intelligence.  
-- Supabase stores structured press releases from Federal Reserve + CFPB plus OpenAI embeddings for semantic recall.  
+- One-click UV setup, scripted scraper, and Streamlit UI for compliance intelligence.
+- Supabase stores structured press releases from Federal Reserve and CFPB plus OpenAI embeddings for semantic recall.
 - Storytelling view surfaces focus terms, multi-year trends, and GPT-generated insights for analysts.
-- Agentic retrieval tool broadens or retries searches automatically so analysts always get enough context.
-- Full **Retrieval-Augmented Generation (RAG)** loop: retrieve context via embeddings, then generate OpenAI summaries.
+- Agentic retrieval broadens or retries searches automatically so analysts get enough context.
+- Full Retrieval-Augmented Generation (RAG) loop: retrieve context via embeddings, then generate OpenAI summaries.
 
 ### Why It Matters
-- **Unified fraud intelligence workspace** - Replaces ad-hoc spreadsheets with a governed Streamlit view linking data, embeddings, and AI summaries.
-- **Actionable compliance insights** - Focus-word detection pinpoints regulatory concerns so risk teams can prioritize remediation and training.
-- **Reusable pipeline** - Parameterized ETL, embeddings, and library components can be adapted to other institutions with minimal change.
+- Unified fraud intelligence workspace that links data, embeddings, and AI summaries.
+- Actionable compliance insights that highlight regulatory concerns for remediation and training.
+- Reusable pipeline that can be adapted to other institutions with minimal change.
 
 ### Visual Overview
 ![Streamlit Dashboard](images/streamlit_dashboard.png)
-*Streamlit application (`streamlit_app3.py`) highlighting focus-word filters, yearly trend chart, and article summaries.*
+Streamlit application (`streamlit_app3.py`) highlighting focus-word filters, yearly trend chart, and article summaries.
 
 ### Folder Structure
 ```
@@ -95,22 +86,18 @@ OPENAI_API_KEY=your_openai_key
 └── pyproject.toml
 ```
 
----
-
-## Architecture & Data Flow
+## Architecture and Data Flow
 ```mermaid
 flowchart LR
     A["Regulatory sites<br/>(FRB + CFPB)"] --> B["Scrapers<br/>HTML + PDF"]
-    B --> C[Clean & normalize text]
-    C --> D[(Supabase DB & Vector Store)]
+    B --> C[Clean and normalize text]
+    C --> D[(Supabase DB and Vector Store)]
     D --> E[Embedding cache / article_index]
     E --> F[Streamlit application]
-    F --> G[OpenAI summaries + trend visuals]
+    F --> G[OpenAI summaries and trend visuals]
 ```
 
----
-
-## Data Glimpse & Transform Example
+## Data Glimpse and Transform Example
 ### Sample Record
 | id | title | focus_word | date | risk_score |
 | --- | --- | --- | --- | --- |
@@ -155,62 +142,47 @@ st.pyplot(plot_focus_term_trend(filtered))
 ```
 This minimal example mirrors `streamlit_app3.py`: cached Supabase data drives interactive filters and visuals.
 
----
-
 ## System Overview
-1. **Data Collection** - Scrapes Federal Reserve and CFPB (HTML/PDF) releases, standardizes dates, and merges titles/content.  
-2. **Data Storage** - Supabase hosts the relational data and embeddings created with `text-embedding-3-small`.  
-3. **Semantic Storytelling** - Query-aware similarity search pulls contextually relevant press releases, identifies a focus word, and aggregates yearly metrics.  
-4. **AI Summaries** - OpenAI GPT models convert article clusters into contextual narratives for analysts.  
-5. **Library Integration** - Semantic collections are saved for rapid recall in review sessions.
-
-Together these steps implement a Retrieval-Augmented Generation (RAG) workflow: retrieve the most relevant press releases, then generate analyst-ready narratives.
-
----
+1. Data collection scrapes Federal Reserve and CFPB releases, standardizes dates, and merges titles and content.
+2. Data storage uses Supabase for relational data and embeddings created with `text-embedding-3-small`.
+3. Semantic storytelling performs query-aware similarity search, identifies a focus word, and aggregates yearly metrics.
+4. AI summaries convert article clusters into contextual narratives for analysts.
+5. Library integration saves semantic collections for rapid recall in review sessions.
 
 ## Key Features
-- Automated regulatory press release scraping.  
-- Supabase-backed storage plus vector similarity search.  
-- Local cached embedding index for low-latency queries.  
-- Domain-specific keyword extraction and focus term detection.  
-- Yearly trend visualization tied to the selected focus word.  
-- GPT-based summarization for narrative context.  
-- Library system to curate compliance topic groups, with a semantic viewer that can be tuned (via UI) to search more or fewer related articles.
-
----
+- Automated regulatory press release scraping.
+- Supabase-backed storage plus vector similarity search.
+- Local cached embedding index for low-latency queries.
+- Domain-specific keyword extraction and focus term detection.
+- Yearly trend visualization tied to the selected focus word.
+- GPT-based summarization for narrative context.
+- Library system to curate compliance topic groups, with a semantic viewer that can be tuned in the UI to search more or fewer related articles.
 
 ## Tech Stack
-- **Python 3.12** - core language.  
-- **Streamlit** - interactive dashboard.  
-- **Supabase** - Postgres + vector store.  
-- **OpenAI GPT + embeddings** - semantic search, summarization.  
-- **Pandas / Matplotlib** - analytics + visuals.  
-- **BeautifulSoup4 / Requests / PyPDF2** - scraping + parsing.  
-- **uv** - fast environment + execution manager.
+- Python 3.12
+- Streamlit
+- Supabase (Postgres and vector store)
+- OpenAI GPT and embeddings
+- Pandas and Matplotlib
+- BeautifulSoup4, Requests, PyPDF2
+- uv for environment and execution management
 
----
-
-## Findings & Impact
+## Findings and Impact
 | Insight | Why it matters | Visual |
 | --- | --- | --- |
-| Bank Secrecy Act (BSA) findings rose 22% YoY | Highlights priorities for fraud analysts and training | Dashboard focus-word trend chart (see screenshot) |
-| Wire fraud remediation deadlines are shorter (<45 days) | Signals urgency for operations teams | Animated GIF demo highlighting alert cards |
-| Repeat offenders cluster around 6 institutions | Guides investigative triage and storytelling | Library collections panel in Streamlit |
+| Bank Secrecy Act (BSA) findings rose 22% year over year | Highlights priorities for fraud analysts and training | Dashboard focus-word trend chart |
+| Wire fraud remediation deadlines are shorter (under 45 days) | Signals urgency for operations teams | Animated GIF demo highlighting alert cards |
+| Repeat offenders cluster around six institutions | Guides investigative triage and storytelling | Library collections panel in Streamlit |
 
-The project is useful because it compresses multiple compliance workflows (scraping, labeling, trend analysis, and executive storytelling) into a single reproducible Streamlit experience. Analysts can pivot from macro trends to specific consent orders within seconds.
-
----
+The project compresses scraping, labeling, trend analysis, and executive storytelling into one reproducible Streamlit experience, allowing analysts to pivot from macro trends to specific consent orders quickly.
 
 ## Current Status
-- **ETL pipeline, semantic model, and OpenAI summarization are fully operational.**  
-- **Focus-term detection and yearly trend visualization functioning correctly.**  
-- **Library integration for topic-based article collections implemented.**  
-- **Multimodal architecture documented and production-ready.**  
+- ETL pipeline, semantic model, and OpenAI summarization are operational.
+- Focus-term detection and yearly trend visualization are functioning.
+- Library integration for topic-based article collections is implemented.
+- Documentation and architecture are production-ready.
 
-Future improvements: continuous scraping schedule, fine-tuned domain embeddings, and multilingual monitoring.
-
----
+Future improvements include a continuous scraping schedule, fine-tuned domain embeddings, and multilingual monitoring.
 
 ## Acknowledgment
-Developed for **DTSC 3602: Data Science Project at UNC Charlotte**, demonstrating machine learning, LLM integration, and visual analytics for regulatory insight automation.  
-Drafted with assistance from **ChatGPT** for documentation polish and coding assistance.
+Developed for DTSC 3602: Data Science Project at UNC Charlotte, demonstrating machine learning, LLM integration, and visual analytics for regulatory insight automation. Drafted with assistance from ChatGPT for documentation polish and coding support.
