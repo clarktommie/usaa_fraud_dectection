@@ -90,7 +90,6 @@ OPENAI_API_KEY=your_openai_key
 │   ├── universal_scraper_outer.py
 │   └── usaa_logo.py
 ├── streamlit_app3.py
-├── modal_app.py
 ├── README.md
 └── pyproject.toml
 ```
@@ -100,12 +99,12 @@ OPENAI_API_KEY=your_openai_key
 ## Architecture & Data Flow
 ```mermaid
 flowchart LR
-    A[Regulatory sites] --> B[Scrapers (HTML/PDF)]
-    B --> C[Clean + normalize text]
-    C --> D[(Supabase DB + Vector Store)]
-    D --> E[Embedding Cache / article_index]
-    E --> F[Streamlit App]
-    F --> G[OpenAI Summaries + Visual Trends]
+    A["Regulatory sites<br/>(FRB + CFPB)"] --> B["Scrapers<br/>HTML + PDF"]
+    B --> C[Clean & normalize text]
+    C --> D[(Supabase DB & Vector Store)]
+    D --> E[Embedding cache / article_index]
+    E --> F[Streamlit application]
+    F --> G[OpenAI summaries + trend visuals]
 ```
 
 ---
