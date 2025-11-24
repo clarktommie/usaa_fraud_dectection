@@ -47,9 +47,9 @@ OPENAI_API_KEY=your_openai_key
 - Full **Retrieval-Augmented Generation (RAG)** loop: retrieve context via embeddings, then generate OpenAI summaries.
 
 ### Why It Matters
-- **Unified fraud intelligence workspace** – Replaces ad-hoc spreadsheets with a governed Streamlit view linking data, embeddings, and AI summaries.
-- **Actionable compliance insights** – Focus-word detection pinpoints regulatory concerns so risk teams can prioritize remediation and training.
-- **Reusable pipeline** – Parameterized ETL, embeddings, and library components can be adapted to other institutions with minimal change.
+- **Unified fraud intelligence workspace** - Replaces ad-hoc spreadsheets with a governed Streamlit view linking data, embeddings, and AI summaries.
+- **Actionable compliance insights** - Focus-word detection pinpoints regulatory concerns so risk teams can prioritize remediation and training.
+- **Reusable pipeline** - Parameterized ETL, embeddings, and library components can be adapted to other institutions with minimal change.
 
 ### Visual Overview
 ![Streamlit Dashboard](images/streamlit_dashboard.png)
@@ -158,11 +158,11 @@ This minimal example mirrors `streamlit_app3.py`: cached Supabase data drives in
 ---
 
 ## System Overview
-1. **Data Collection** – Scrapes Federal Reserve and CFPB (HTML/PDF) releases, standardizes dates, and merges titles/content.  
-2. **Data Storage** – Supabase hosts the relational data and embeddings created with `text-embedding-3-small`.  
-3. **Semantic Storytelling** – Query-aware similarity search pulls contextually relevant press releases, identifies a focus word, and aggregates yearly metrics.  
-4. **AI Summaries** – OpenAI GPT models convert article clusters into contextual narratives for analysts.  
-5. **Library Integration** – Semantic collections are saved for rapid recall in review sessions.
+1. **Data Collection** - Scrapes Federal Reserve and CFPB (HTML/PDF) releases, standardizes dates, and merges titles/content.  
+2. **Data Storage** - Supabase hosts the relational data and embeddings created with `text-embedding-3-small`.  
+3. **Semantic Storytelling** - Query-aware similarity search pulls contextually relevant press releases, identifies a focus word, and aggregates yearly metrics.  
+4. **AI Summaries** - OpenAI GPT models convert article clusters into contextual narratives for analysts.  
+5. **Library Integration** - Semantic collections are saved for rapid recall in review sessions.
 
 Together these steps implement a Retrieval-Augmented Generation (RAG) workflow: retrieve the most relevant press releases, then generate analyst-ready narratives.
 
@@ -180,13 +180,13 @@ Together these steps implement a Retrieval-Augmented Generation (RAG) workflow: 
 ---
 
 ## Tech Stack
-- **Python 3.12** – core language.  
-- **Streamlit** – interactive dashboard.  
-- **Supabase** – Postgres + vector store.  
-- **OpenAI GPT + embeddings** – semantic search, summarization.  
-- **Pandas / Matplotlib** – analytics + visuals.  
-- **BeautifulSoup4 / Requests / PyPDF2** – scraping + parsing.  
-- **uv** – fast environment + execution manager.
+- **Python 3.12** - core language.  
+- **Streamlit** - interactive dashboard.  
+- **Supabase** - Postgres + vector store.  
+- **OpenAI GPT + embeddings** - semantic search, summarization.  
+- **Pandas / Matplotlib** - analytics + visuals.  
+- **BeautifulSoup4 / Requests / PyPDF2** - scraping + parsing.  
+- **uv** - fast environment + execution manager.
 
 ---
 
