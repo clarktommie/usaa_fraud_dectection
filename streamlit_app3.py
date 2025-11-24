@@ -25,7 +25,6 @@ from supabase import create_client
 from src.sidebar_controls import sidebar_controls
 from src.library_viewer import render_library_viewer
 from src.usaa_logo import display_usaa_logo
-from src.topic_dashboard import render_topic_dashboard
 from src.ai.agentic_tool import AgenticRetriever
 from src.ai.fraud_insights import generate_fraud_insights
 from src.ai.article_preprocessing import prepare_articles_for_ai
@@ -267,15 +266,6 @@ st.title("Financial Compliance Insight System")
 focus_label, preset_query, insight_choice = sidebar_controls()
 default_query = preset_query or ""
 st.info("Enter a query (or choose a fraud focus in the sidebar), then click **Search**.")
-
-# -----------------
-# Sidebar: Topic Dashboard Button
-# -----------------
-st.sidebar.markdown("### Analysis Modules")
-if st.sidebar.button("📘 Topic Dashboard"):
-    st.session_state["show_topic_dashboard"] = True
-if st.session_state.get("show_topic_dashboard"):
-    render_topic_dashboard()
 
 # -----------------
 # Fetch Articles (Cached Index)

@@ -85,7 +85,6 @@ OPENAI_API_KEY=your_openai_key
 │   ├── openai_summary.py
 │   ├── semantic_library.py
 │   ├── sidebar_controls.py
-│   ├── topic_dashboard.py
 │   ├── topic_keyword_utils.py
 │   ├── topic_visuals.py
 │   ├── universal_scraper_inner.py
@@ -176,7 +175,7 @@ Together these steps implement a Retrieval-Augmented Generation (RAG) workflow: 
 - Domain-specific keyword extraction and focus term detection.  
 - Yearly trend visualization tied to the selected focus word.  
 - GPT-based summarization for narrative context.  
-- Library system to curate compliance topic groups.
+- Library system to curate compliance topic groups, with a semantic viewer that can be tuned (via UI) to search more or fewer related articles.
 
 ---
 

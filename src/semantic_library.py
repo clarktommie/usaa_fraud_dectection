@@ -8,7 +8,7 @@ Targets the 'public.library' table.
 
 import os
 from datetime import datetime
-from typing import Iterable, Any
+from typing import Iterable, Any, List, Set
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -19,6 +19,15 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Curated synonym map so semantic topic queries catch common variants (e.g., AML).
+_TOPIC_SYNONYMS = {
+    "anti money laundering": ["aml", "money laundering", "anti-money laundering"],
+    "aml": ["anti money laundering", "money laundering", "anti-money laundering"],
+    "money laundering": ["aml", "anti money laundering", "anti-money laundering"],
+    "know your customer": ["kyc", "customer due diligence"],
+    "kyc": ["know your customer", "customer due diligence"],
+}
 
 
 # ---------------------------
@@ -34,6 +43,42 @@ def _to_float(x: Any) -> float:
         return float(x)
     except Exception:
         return 0.0
+
+
+def _normalize_topic(topic: str) -> str:
+    """Lowercase, strip, and collapse whitespace/hyphens for consistent matching."""
+    norm = (topic or "").strip().lower().replace("-", " ")
+    return " ".join(norm.split())
+
+
+def _topic_variants(topic: str) -> List[str]:
+    """
+    Build semantic variants for a topic:
+    - normalized phrase
+    - acronym (e.g., anti money laundering -> aml)
+    - curated synonyms/aliases
+    """
+    base = _normalize_topic(topic)
+    if not base:
+        return []
+
+    variants: Set[str] = {base}
+
+    tokens = base.split()
+    if len(tokens) >= 2:
+        acronym = "".join(word[0] for word in tokens if word)
+        if acronym:
+            variants.add(acronym)
+
+    for alt in _TOPIC_SYNONYMS.get(base, []):
+        variants.add(_normalize_topic(alt))
+
+    return sorted(variants)
+
+
+def topic_variants(topic: str) -> List[str]:
+    """Public helper to expose the normalized + synonym variants used for querying."""
+    return _topic_variants(topic)
 
 
 def _existing_article_ids_for_topic(topic: str) -> set:
@@ -125,12 +170,47 @@ def save_semantic_library(
 
 
 def get_topic_library(topic: str) -> pd.DataFrame:
-    """Retrieve saved rows for a topic from public.library."""
-    res = (
-        supabase.table("library")
-        .select("*")
-        .ilike("topic", topic.lower())
-        .order("created_at", desc=True)
-        .execute()
-    )
+    """Retrieve saved rows for a topic from public.library, including common variants."""
+    variants = _topic_variants(topic)
+
+    query = supabase.table("library").select("*")
+    if variants:
+        # Use OR across variant patterns; wildcard allows partial topic strings.
+        filters = [f"topic.ilike.%{v}%" for v in variants]
+        query = query.or_(",".join(filters))
+
+    res = query.order("created_at", desc=True).execute()
     return pd.DataFrame(res.data or [])
+
+
+def get_library_by_article_ids(article_ids: Iterable[Any]) -> pd.DataFrame:
+    """
+    Retrieve library rows whose article_id is in the provided list.
+    Uses chunking to avoid Supabase filter size limits.
+    """
+    ids = [aid for aid in article_ids if aid is not None]
+    if not ids:
+        return pd.DataFrame()
+
+    unique_ids = list(dict.fromkeys(ids))
+    chunk_size = 200
+    frames = []
+
+    for start in range(0, len(unique_ids), chunk_size):
+        chunk = unique_ids[start : start + chunk_size]
+        res = (
+            supabase.table("library")
+            .select("*")
+            .in_("article_id", chunk)
+            .order("created_at", desc=True)
+            .execute()
+        )
+        frames.append(pd.DataFrame(res.data or []))
+
+    if not frames:
+        return pd.DataFrame()
+
+    df = pd.concat(frames, ignore_index=True)
+    if "created_at" in df.columns:
+        df = df.sort_values("created_at", ascending=False)
+    return df.reset_index(drop=True)
