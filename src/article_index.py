@@ -56,6 +56,18 @@ def _parse_embedding(value) -> Optional[Sequence[float]]:
     return None
 
 
+def _embed_text(text: str) -> np.ndarray:
+    """Embed and normalize a query string for similarity search."""
+    if not text:
+        return np.zeros(1536)
+    response = openai_client.embeddings.create(model=EMBED_MODEL, input=text)
+    vec = np.array(response.data[0].embedding, dtype=float)
+    norm = np.linalg.norm(vec)
+    if norm == 0:
+        return vec
+    return vec / norm
+
+
 class ArticleIndex:
     _instance: Optional["ArticleIndex"] = None
 

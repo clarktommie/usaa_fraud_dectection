@@ -59,18 +59,20 @@ def save_semantic_library(
     query: str,
     articles_df: pd.DataFrame,
     similarities: Iterable[Any],
+    avoid_duplicates: bool = False,
 ) -> int:
     """
     Save related articles into public.library.
     - Coerces similarity values to floats (handles lists/tuples/np scalars).
     - Truncates to the aligned length of (articles_df, similarities).
-    - Skips rows with missing id/title/url and avoids duplicates per topic.
+    - Skips rows with missing id/title/url; optionally avoids duplicates per topic.
 
     Args:
         topic: focus topic (e.g., 'phishing', 'aml')
         query: the user's original query
         articles_df: DataFrame with at least ['id','title','url','date']
         similarities: iterable of similarity scores aligned to articles_df rows
+        avoid_duplicates: when True, avoid inserting existing article_ids for topic
 
     Returns:
         Number of inserted rows.
@@ -87,8 +89,8 @@ def save_semantic_library(
     if n == 0:
         return 0
 
-    # Deduplicate by topic+article_id
-    existing_ids = _existing_article_ids_for_topic(topic)
+    # Deduplicate by topic+article_id (optional)
+    existing_ids = _existing_article_ids_for_topic(topic) if avoid_duplicates else set()
     payload = []
 
     # Use .iloc to preserve ordering; iterate aligned pairs
@@ -100,7 +102,7 @@ def save_semantic_library(
 
         if not aid or not title or not url:
             continue
-        if aid in existing_ids:
+        if avoid_duplicates and aid in existing_ids:
             continue
 
         payload.append(

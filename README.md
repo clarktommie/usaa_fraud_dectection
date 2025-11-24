@@ -43,6 +43,8 @@ OPENAI_API_KEY=your_openai_key
 - One-click UV setup, scripted scraper, and Streamlit UI for compliance intelligence.  
 - Supabase stores structured press releases from Federal Reserve + CFPB plus OpenAI embeddings for semantic recall.  
 - Storytelling view surfaces focus terms, multi-year trends, and GPT-generated insights for analysts.
+- Agentic retrieval tool broadens or retries searches automatically so analysts always get enough context.
+- Full **Retrieval-Augmented Generation (RAG)** loop: retrieve context via embeddings, then generate OpenAI summaries.
 
 ### Why It Matters
 - **Unified fraud intelligence workspace** – Replaces ad-hoc spreadsheets with a governed Streamlit view linking data, embeddings, and AI summaries.
@@ -126,6 +128,20 @@ print(keyword)  # -> "AML"
 ```
 The Streamlit layer injects this inferred keyword into semantic searches, aligns yearly metrics, and feeds OpenAI summaries.
 
+### Agentic Retrieval Snippet
+```python
+from src.article_index import ArticleIndex
+from src.ai.agentic_tool import AgenticRetriever
+
+index = ArticleIndex.load()
+agent = AgenticRetriever(index)
+result = agent.retrieve("wire fraud deadlines", focus_hint="wire fraud")
+print(result.query_used)  # expanded query used by the agent
+for step in result.steps:
+    print(step.action, step.detail)
+```
+The agent enforces a Retrieval-Augmented Generation loop by adaptively expanding queries or backfilling cached context before the LLM generates summaries.
+
 ### Streamlit Data Flow Example
 ```python
 import streamlit as st
@@ -148,6 +164,8 @@ This minimal example mirrors `streamlit_app3.py`: cached Supabase data drives in
 3. **Semantic Storytelling** – Query-aware similarity search pulls contextually relevant press releases, identifies a focus word, and aggregates yearly metrics.  
 4. **AI Summaries** – OpenAI GPT models convert article clusters into contextual narratives for analysts.  
 5. **Library Integration** – Semantic collections are saved for rapid recall in review sessions.
+
+Together these steps implement a Retrieval-Augmented Generation (RAG) workflow: retrieve the most relevant press releases, then generate analyst-ready narratives.
 
 ---
 

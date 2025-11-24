@@ -26,6 +26,7 @@ from src.sidebar_controls import sidebar_controls
 from src.library_viewer import render_library_viewer
 from src.usaa_logo import display_usaa_logo
 from src.topic_dashboard import render_topic_dashboard
+from src.ai.agentic_tool import AgenticRetriever
 from src.ai.fraud_insights import generate_fraud_insights
 from src.ai.article_preprocessing import prepare_articles_for_ai
 from src.cfpb_loader import fetch_complaints
@@ -124,8 +125,10 @@ def build_stakeholder_brief(
     """Craft bullet-friendly stakeholder talking points from visual data."""
     lines: list[str] = []
     coverage = "n/a"
-    if stats.get("earliest_date") and stats.get("latest_date"):
-        coverage = f"{stats['earliest_date']:%b %Y} → {stats['latest_date']:%b %Y}"
+    earliest = stats.get("earliest_date")
+    latest = stats.get("latest_date")
+    if earliest is not None and pd.notna(earliest) and latest is not None and pd.notna(latest):
+        coverage = f"{earliest:%b %Y} → {latest:%b %Y}"
 
     lines.append(
         f"- **Focus**: {focus_phrase} surfaces {stats.get('article_count', 0)} high-similarity releases "
@@ -278,11 +281,13 @@ if st.session_state.get("show_topic_dashboard"):
 # Fetch Articles (Cached Index)
 # -----------------
 refresh_cache = st.sidebar.button("♻️ Refresh Article Cache", help="Forces the local embedding cache to rebuild from Supabase.")
+retrieval_agent = None
 try:
     index = ArticleIndex.load(force_refresh=refresh_cache)
     all_articles = index.to_dataframe(include_embeddings=True)
     built_time = datetime.fromtimestamp(index.built_at)
     st.success(f"✅ Loaded {len(all_articles)} cached articles (updated {built_time.strftime('%Y-%m-%d %H:%M')}).")
+    retrieval_agent = AgenticRetriever(index)
 except Exception as exc:
     st.error(f"⚠️ Unable to load article cache: {exc}")
     from src.data_loader import fetch_articles  # lazy import fallback
@@ -292,6 +297,7 @@ except Exception as exc:
         st.stop()
     else:
         st.warning("Using live Supabase data (no local cache).")
+    retrieval_agent = None
 
 # -----------------
 # Load Complaints
@@ -315,7 +321,34 @@ query_sentence = st.text_input(
 run_semantic = st.button("Run Semantic Search")
 
 if run_semantic and query_sentence.strip():
-    df = all_articles.copy()
+    agent_steps = []
+    focus_hint = focus_label if focus_label != "— none —" else ""
+    if retrieval_agent:
+        agent_result = retrieval_agent.retrieve(query_sentence, focus_hint)
+        agent_steps = agent_result.steps
+        agent_df = agent_result.articles
+        if (
+            not agent_df.empty
+            and "id" in agent_df.columns
+            and "id" in all_articles.columns
+        ):
+            subset = all_articles[all_articles["id"].isin(agent_df["id"])].copy()
+            if not subset.empty:
+                subset = subset.set_index("id").reindex(agent_df["id"]).reset_index()
+                if "semantic_score" in agent_df.columns:
+                    subset["semantic_score"] = (
+                        agent_df.set_index("id")
+                        .reindex(subset["id"])
+                        ["semantic_score"]
+                        .values
+                    )
+                df = subset
+            else:
+                df = agent_df.copy()
+        else:
+            df = agent_df.copy()
+    else:
+        df = all_articles.copy()
 
     if df.empty:
         st.warning("No articles match the selected filters.")
@@ -337,6 +370,10 @@ if run_semantic and query_sentence.strip():
         # -----------------------------
         st.divider()
         st.markdown("### 🧠 AI-Generated Unified Fraud Insight")
+        if agent_steps:
+            with st.expander("Agent plan & tool calls", expanded=False):
+                for step in agent_steps:
+                    st.markdown(f"- **{step.action}** — {step.detail}")
         st.write(result.get("summary_text", "No insight generated."))
         citations = build_apa_citations(df)
         if citations:
@@ -409,8 +446,10 @@ if run_semantic and query_sentence.strip():
                     help="Normalized cosine similarity (0-1) against the query.",
                 )
                 date_range = "n/a"
-                if stats.get("earliest_date") and stats.get("latest_date"):
-                    date_range = f"{stats['earliest_date']:%b %Y} → {stats['latest_date']:%b %Y}"
+                earliest = stats.get("earliest_date")
+                latest = stats.get("latest_date")
+                if earliest is not None and pd.notna(earliest) and latest is not None and pd.notna(latest):
+                    date_range = f"{earliest:%b %Y} → {latest:%b %Y}"
                 m3.metric("Coverage window", date_range)
 
                 col_ts, col_src = st.columns(2)
