@@ -24,7 +24,7 @@ Automated ETL, embeddings, and storytelling dashboards that highlight emerging c
 - Open the URL shown after cold start (Modal proxies port 8501).
 
 ### Required Environment Variables
-Add these to a `.env` file (insert your secrets from supabase and openAI):
+Add these to a `.env` file (no examples shown; keep your values private):
 ```
 SUPABASE_URL=...
 SUPABASE_KEY=...
