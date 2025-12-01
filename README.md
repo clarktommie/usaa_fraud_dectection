@@ -178,10 +178,10 @@ This minimal example mirrors `streamlit_app3.py`: cached Supabase data drives in
 The project compresses scraping, labeling, trend analysis, and executive storytelling into one reproducible Streamlit experience, allowing analysts to pivot from macro trends to specific consent orders quickly.
 
 ## Current Status
-- ETL pipeline, semantic model, and OpenAI summarization are operational.
-- Focus-term detection and yearly trend visualization are functioning.
+- ETL pipeline, semantic model, and OpenAI summarization are operational (cached embeddings served via ArticleIndex).
+- Focus-term detection, yearly trend visualization, and agentic retrieval are functioning in the Streamlit UI.
 - Library integration for topic-based article collections is implemented.
-- Documentation and architecture are production-ready.
+- Modal deployment available at the live demo link; docs and architecture remain production-ready.
 
 Future improvements include a continuous scraping schedule, fine-tuned domain embeddings, and multilingual monitoring.
 
