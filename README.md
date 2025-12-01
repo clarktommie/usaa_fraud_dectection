@@ -18,23 +18,16 @@ Automated ETL, embeddings, and storytelling dashboards that highlight emerging c
 
 ## Deploy to Modal (Streamlit)
 - Install CLI: `uv tool install modal` (or `pip install modal` inside your venv).
-- Create/update secret (from your `.env`):  
-  `set -a && source .env && modal secret create fruad_detection SUPABASE_URL=\"$SUPABASE_URL\" SUPABASE_KEY=\"$SUPABASE_KEY\" OPENAI_API_KEY=\"$OPENAI_API_KEY\" OPENAI_TRENDS_MODEL=\"${OPENAI_TRENDS_MODEL:-gpt-4o-mini}\"`
+- Create a Modal secret containing SUPABASE_URL, SUPABASE_KEY, and OPENAI_API_KEY (name it to match `modal_app.py`).
 - Deploy from repo root: `modal deploy modal_app.py`
-- Open the URL shown after cold start (Modal will proxy port 8501).
+- Open the URL shown after cold start (Modal proxies port 8501).
 
 ### Required Environment Variables
-| Key | Purpose | Example |
-| --- | --- | --- |
-| SUPABASE_URL | Supabase project REST endpoint | your_secret_url_here |
-| SUPABASE_KEY | Supabase service/anon key | your_secret_key_here |
-| OPENAI_API_KEY | Embedding and summary API key | your_secret_openAI_key_here |
-
-Create a `.env` file and populate the values:
-```bash
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_anon_key
-OPENAI_API_KEY=your_openai_key
+Add these to a `.env` file (no examples shown; keep your values private):
+```
+SUPABASE_URL=...
+SUPABASE_KEY=...
+OPENAI_API_KEY=...
 ```
 
 ## Project Snapshot
