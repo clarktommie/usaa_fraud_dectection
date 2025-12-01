@@ -185,5 +185,12 @@ The project compresses scraping, labeling, trend analysis, and executive storyte
 
 Future improvements include a continuous scraping schedule, fine-tuned domain embeddings, and multilingual monitoring.
 
+## Scalability Notes
+- Current footprint: Single Streamlit app on Modal, cached embeddings via ArticleIndex, Supabase as the data/vector backend; suitable for prototypes and small analyst teams.
+- Throughput: Works for light concurrent use; add replicas or shared ingress if analyst load grows.
+- Data growth: If the corpus expands, consider a managed vector store or sharded index instead of local cache, plus scheduled rebuilds.
+- Performance: Use async for API calls, background jobs for scraping/index refresh, and monitoring/logging to catch slow paths.
+- Hardening: Add retries/backoff around Supabase/OpenAI, better observability, and CI checks before promoting changes.
+
 ## Acknowledgment
 Developed for DTSC 3602: Data Science Project at UNC Charlotte, demonstrating machine learning, LLM integration, and visual analytics for regulatory insight automation. Drafted with assistance from ChatGPT for documentation polish and coding support.
