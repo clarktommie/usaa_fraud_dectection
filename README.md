@@ -26,9 +26,9 @@ Automated ETL, embeddings, and storytelling dashboards that highlight emerging c
 ### Required Environment Variables
 | Key | Purpose | Example |
 | --- | --- | --- |
-| SUPABASE_URL | Supabase project REST endpoint | https://xyzcompany.supabase.co |
-| SUPABASE_KEY | Supabase service/anon key | eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9... |
-| OPENAI_API_KEY | Embedding and summary API key | sk-abc123 |
+| SUPABASE_URL | Supabase project REST endpoint | secret |
+| SUPABASE_KEY | Supabase service/anon key | secret|
+| OPENAI_API_KEY | Embedding and summary API key | secret |
 
 Create a `.env` file and populate the values:
 ```bash
