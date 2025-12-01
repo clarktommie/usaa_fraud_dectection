@@ -424,7 +424,7 @@ if run_semantic and query_sentence.strip():
 
                 fallback_trend_items = build_fallback_trends(ts, sources, keyword_chart_df, focus_phrase)
 
-                m1, m2, m3 = st.columns(3)
+                m1, m2 = st.columns(2)
                 m1.metric(
                     "Articles in focus",
                     stats.get("article_count", 0),
@@ -435,12 +435,6 @@ if run_semantic and query_sentence.strip():
                     f"{stats.get('avg_similarity', 0):.2f}",
                     help="Normalized cosine similarity (0-1) against the query.",
                 )
-                date_range = "n/a"
-                earliest = stats.get("earliest_date")
-                latest = stats.get("latest_date")
-                if earliest is not None and pd.notna(earliest) and latest is not None and pd.notna(latest):
-                    date_range = f"{earliest:%b %Y} → {latest:%b %Y}"
-                m3.metric("Coverage window", date_range)
 
                 col_ts, col_src = st.columns(2)
                 if not ts.empty:
@@ -547,6 +541,11 @@ if run_semantic and query_sentence.strip():
                 state_map = build_state_heatmap_data(complaints_df, focus_phrase)
                 if not state_map.empty:
                     st.subheader("Complaint Hotspots")
+                    heatmap_label = state_map.attrs.get("heatmap_label")
+                    if state_map.attrs.get("fallback_used") and heatmap_label:
+                        st.caption(f"Using closest complaint category match: `{heatmap_label}`.")
+                    elif heatmap_label and heatmap_label.lower() != focus_phrase.lower():
+                        st.caption(f"Matched complaint category: `{heatmap_label}`.")
                     st.pydeck_chart(
                         pdk.Deck(
                             layers=[

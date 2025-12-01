@@ -29,7 +29,8 @@ REQUEST_TIMEOUT = 25
 PDF_MIN_WORDS = 40
 MIN_ACCEPTABLE_WORDS = 25
 PDF_FALLBACK_PREVIEW = 1500
-BATCH_SIZE = 100
+# Keep batches small to avoid Supabase timeouts.
+BATCH_SIZE = 5
 SUMMARY_SENTENCES = 3
 MAX_ENTITIES = 5
 MAX_TAGS = 5
@@ -124,9 +125,15 @@ def can_fetch(url: str) -> bool:
     base = f"{parsed.scheme}://{parsed.netloc}"
     robots_url = f"{base}/robots.txt"
     try:
+        resp = session.get(robots_url, timeout=REQUEST_TIMEOUT)
+        # Treat missing robots.txt as "no rules" instead of blocking everything.
+        if resp.status_code == 404:
+            print(f"robots.txt check for {base}: ⚠️ 404 returned — treating as allowed")
+            return True
+        resp.raise_for_status()
+
         rp = urllib.robotparser.RobotFileParser()
-        rp.set_url(robots_url)
-        rp.read()
+        rp.parse(resp.text.splitlines())
         allowed = rp.can_fetch(USER_AGENT, url)
         print(f"robots.txt check for {base}: {'✅ allowed' if allowed else '🚫 disallowed'}")
         return allowed
@@ -203,10 +210,17 @@ def parse_html(resp: Response, base_url: str) -> Dict[str, Optional[str]]:
 
     title_tag = soup.find("title")
     title = title_tag.get_text(strip=True) if title_tag else None
+    if not title:
+        og_title = soup.find("meta", attrs={"property": "og:title"}) or soup.find(
+            "meta", attrs={"name": "og:title"}
+        )
+        if og_title and og_title.get("content"):
+            title = og_title.get("content").strip()
 
     main = (
         soup.select_one(
-            "div.o-post-content, div.entry-content, div.article__body, article, main, div.col-sm-8"
+            "div.o-post-content, div.entry-content, div.article__body, article, main, "
+            "div.col-sm-8, div.col-xs-12.col-sm-8, div#article, div.article__content"
         )
         or soup
     )
@@ -218,7 +232,10 @@ def parse_html(resp: Response, base_url: str) -> Dict[str, Optional[str]]:
         alt_paragraphs = [p.get_text(" ", strip=True) for p in alt.find_all("p")]
         content = "\n\n".join(t for t in alt_paragraphs if word_count(t) > 5).strip()
 
-    tag = soup.select_one("time[datetime], time, meta[property='article:published_time']")
+    tag = soup.select_one(
+        "time[datetime], time, meta[property='article:published_time'], "
+        "meta[name='DC.date'], meta[name='DC.date.issued']"
+    )
     date = (
         tag.get("datetime")
         if tag and tag.has_attr("datetime")
@@ -228,6 +245,10 @@ def parse_html(resp: Response, base_url: str) -> Dict[str, Optional[str]]:
         if tag
         else None
     )
+    if not date:
+        date_tag = soup.select_one("p.article__time, span.article__time, .article__date")
+        if date_tag:
+            date = date_tag.get_text(strip=True)
 
     by = soup.select_one(".author-name, .byline, meta[name='author']")
     author = (
@@ -490,13 +511,24 @@ def fetch_pending_articles(batch_size: int = 1000) -> List[Dict[str, Optional[st
     start = 0
 
     while True:
-        resp = (
-            supabase.table("press_releases")
-            .select("id, url, title, author, date")
-            .eq("status", "pending")
-            .range(start, start + batch_size - 1)
-            .execute()
-        )
+        delay = 1.0
+        for attempt in range(3):
+            try:
+                resp = (
+                    supabase.table("press_releases")
+                    .select("id, url, title, author, date")
+                    .eq("status", "pending")
+                    .range(start, start + batch_size - 1)
+                    .execute()
+                )
+                break
+            except Exception as exc:
+                if attempt == 2:
+                    raise
+                print(f"⚠️ Supabase fetch failed (attempt {attempt+1}) — retrying in {delay}s: {exc}")
+                time.sleep(delay)
+                delay *= 2
+
         data = resp.data or []
         all_data.extend(data)
         print(f"➡️ Retrieved rows {start}-{start+batch_size-1} (total {len(all_data)})")
@@ -515,25 +547,29 @@ def build_clean_record(
     row: Dict[str, Optional[str]],
     parsed: Dict[str, Optional[str]],
     url: str,
-    enrichment: Dict[str, object],
-    metadata: Dict[str, object],
 ) -> Dict[str, object]:
     """Assemble the clean payload for press_releases_clean."""
     timestamp = datetime.now(UTC).isoformat()
+    date_val = parsed.get("date") or row.get("date")
+    year_val: Optional[int] = None
+    if date_val:
+        try:
+            year_val = int(str(date_val)[:4])
+        except Exception:
+            year_val = None
+
     return {
         "id": row["id"],
         "title": parsed.get("title") or row.get("title"),
         "url": url,
-        "date": parsed.get("date") or row.get("date"),
+        "date": date_val,
+        "date_old": row.get("date_old"),
+        "date_standard": date_val,
+        "year": year_val,
         "author": parsed.get("author") or row.get("author"),
         "content": parsed.get("content"),
         "status": "complete",
-        "summary": enrichment["summary"],
-        "keywords": enrichment["tags"],
-        "entities": enrichment["entities"],
-        "sentiment": enrichment["sentiment"],
-        "snippet": enrichment["snippet"],
-        "metadata": metadata,
+        "source": row.get("source"),
         "updated_at": timestamp,
         "scraped_at": timestamp,
     }
@@ -547,11 +583,22 @@ def flush_batches(
         return
 
     print("\n📦 Writing batch to Supabase...")
-    supabase.table("press_releases_clean").upsert(cleaned_batch).execute()
-    supabase.table("press_releases").upsert(complete_ids).execute()
+    # Retry lightly with backoff to avoid transient statement timeouts.
+    delay = 1.0
+    for attempt in range(3):
+        try:
+            supabase.table("press_releases_clean").upsert(cleaned_batch).execute()
+            supabase.table("press_releases").upsert(complete_ids).execute()
+            break
+        except Exception as exc:
+            if attempt == 2:
+                raise
+            print(f"⚠️ Upsert failed (attempt {attempt+1}) — retrying in {delay}s: {exc}")
+            time.sleep(delay)
+            delay *= 2
     cleaned_batch.clear()
     complete_ids.clear()
-    time.sleep(0.5)
+    time.sleep(1.0)
 
 
 def mark_failed_records(failed_ids: List[Dict[str, object]]) -> None:
@@ -608,7 +655,7 @@ def process_pending_records() -> None:
 
         enrichment = enrich_content(parsed.get("content"))
         metadata = build_metadata(url, resp, parsed, robots_allowed, fetch_duration, parse_duration)
-        cleaned_record = build_clean_record(row, parsed, url, enrichment, metadata)
+        cleaned_record = build_clean_record(row, parsed, url)
 
         cleaned_batch.append(cleaned_record)
         complete_ids.append({"id": row["id"], "status": "complete"})

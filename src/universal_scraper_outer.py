@@ -27,8 +27,13 @@ def can_scrape(url: str) -> bool:
     robots_url = urljoin(base, "/robots.txt")
     rp = urllib.robotparser.RobotFileParser()
     try:
-        rp.set_url(robots_url)
-        rp.read()
+        # Manually fetch so we can treat 404 as "no robots" instead of disallowing everything.
+        resp = requests.get(robots_url, headers=HEADERS, timeout=15)
+        if resp.status_code == 404:
+            print(f"robots.txt check for {base}: ⚠️ 404 returned — treating as allowed")
+            return True
+        resp.raise_for_status()
+        rp.parse(resp.text.splitlines())
         allowed = rp.can_fetch(USER_AGENT, url)
         print(f"robots.txt check for {base}: {'✅ allowed' if allowed else '🚫 disallowed'}")
         return allowed
@@ -158,7 +163,7 @@ def scrape_cfpb_press_releases():
         return []
 
     page = 1
-    max_pages = 100
+    max_pages = 1000
     while page <= max_pages:
         if page == 1:
             url = f"{root}/?categories=press-release"
