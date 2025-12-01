@@ -82,6 +82,27 @@ def _norm(x: str) -> str:
     return re.sub(r"[^a-z0-9\s]", "", x.lower()).strip()
 
 
+def _topic_synonyms(focus_norm: str) -> list[str]:
+    """Map focus topics to a small set of search terms for CFPB complaints."""
+    focus_norm = focus_norm or ""
+    mapping = {
+        "synthetic id": ["synthetic identity", "synthetic id", "identity theft"],
+        "check fraud": ["check fraud", "check scam", "counterfeit check"],
+        "wire": ["wire fraud", "ach fraud", "payment fraud"],
+        "ach": ["wire fraud", "ach fraud", "payment fraud"],
+        "money mule": ["money mule", "money mules", "mule network"],
+        "elder": ["elder abuse", "senior scam", "elder exploitation"],
+        "cyber": ["cyber fraud", "cybercrime", "ransomware"],
+        "ransom": ["cyber fraud", "ransomware", "extortion"],
+        "aml": ["aml", "anti money laundering", "bsa", "sanctions"],
+        "sanction": ["sanctions", "ofac", "aml", "bsa"],
+    }
+    for key, terms in mapping.items():
+        if key in focus_norm:
+            return list(dict.fromkeys(terms + [focus_norm]))
+    return [focus_norm]
+
+
 # ============================================================
 # BUILD CFPB VOCABULARY
 # ============================================================
@@ -139,11 +160,7 @@ def _map_to_cfpb_phrase(focus: str, complaints_df: pd.DataFrame) -> str:
     except Exception:
         pass
 
-    # Fallback to most common issue
-    if "issue" in complaints_df.columns:
-        common = complaints_df["issue"].dropna().astype(str).value_counts().idxmax()
-        return _norm(common)
-
+    # If no mapping found, return the normalized focus phrase to avoid generic fallbacks
     return focus_norm
 
 
@@ -230,21 +247,30 @@ def build_state_heatmap_data(complaints_df: pd.DataFrame, keyword: str) -> pd.Da
 
     keyword_norm = _norm(keyword)
     mapped_phrase = _map_to_cfpb_phrase(keyword_norm, complaints_df)
+    used_token_fallback = False
+    search_terms = _topic_synonyms(mapped_phrase)
 
     df = complaints_df.copy()
-    search_cols = [c for c in ["issue", "product", "company"] if c in df.columns]
+    search_cols = [c for c in ["issue", "product", "company", "domain_label"] if c in df.columns]
 
     mask = pd.Series(False, index=df.index)
-    for col in search_cols:
-        mask |= df[col].astype(str).str.lower().str.contains(mapped_phrase, na=False)
+    for term in search_terms:
+        for col in search_cols:
+            mask |= df[col].astype(str).str.lower().str.contains(term, na=False)
 
     filtered = df[mask]
 
-    # If still empty → fallback to top complaint category
-    if filtered.empty and "issue" in df.columns:
-        fallback_issue = df["issue"].dropna().astype(str).value_counts().idxmax()
-        mapped_phrase = _norm(fallback_issue)
-        filtered = df[df["issue"].astype(str).str.lower().str.contains(mapped_phrase)]
+    # If still empty, try token-level fallback matches on the keyword to avoid generic global fallback
+    if filtered.empty:
+        tokens = [t for t in keyword_norm.split() if len(t) > 3]
+        token_mask = pd.Series(False, index=df.index)
+        for tok in tokens:
+            for col in search_cols:
+                token_mask |= df[col].astype(str).str.lower().str.contains(tok, na=False)
+        filtered = df[token_mask]
+        if not filtered.empty and tokens:
+            mapped_phrase = tokens[0]
+            used_token_fallback = True
 
     if filtered.empty:
         return pd.DataFrame()
@@ -265,6 +291,6 @@ def build_state_heatmap_data(complaints_df: pd.DataFrame, keyword: str) -> pd.Da
     state_counts["longitude"] = state_counts["state"].map(lambda s: STATE_COORDS[s][1])
 
     state_counts.attrs["heatmap_label"] = mapped_phrase
-    state_counts.attrs["fallback_used"] = (mapped_phrase != keyword_norm)
+    state_counts.attrs["fallback_used"] = (mapped_phrase != keyword_norm) or used_token_fallback
 
     return state_counts

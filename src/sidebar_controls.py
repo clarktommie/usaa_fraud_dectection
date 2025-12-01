@@ -1,50 +1,31 @@
 import streamlit as st
 
 FOCUS_OPTIONS = [
-    ("— none —", ""),
-    ("Synthetic identity fraud", "What patterns exist in synthetic identity fraud?"),
-    ("Check fraud & paper-based scams", "How are banks mitigating check fraud and counterfeit schemes?"),
-    ("Wire & ACH payment fraud", "What risks are emerging in wire transfer and ACH payment fraud?"),
-    ("Money mule networks", "How are regulators combating money mule schemes tied to fraud?"),
-    ("Elder financial exploitation", "How are institutions protecting seniors from financial scams?"),
-    ("Cyber & ransomware threats", "How are banks responding to cyber fraud and ransomware attacks?"),
-    ("AML & sanctions compliance", "How are institutions improving AML and sanctions controls?"),
+    ("Synthetic ID", "What trends define synthetic identity fraud in banking?"),
+    ("Check fraud", "What is the current state of check fraud in banking?"),
+    ("Wire/ACH", "How are wire and ACH fraud risks evolving?"),
+    ("Money mules", "How are money mule networks impacting banks?"),
+    ("Elder abuse", "How are banks protecting seniors from financial scams?"),
+    ("Cyber/ransom", "How are banks addressing cyber fraud and ransomware?"),
+    ("AML/sanctions", "How are institutions strengthening AML and sanctions controls?"),
 ]
 
 
 def sidebar_controls():
-    """
-    Render the Streamlit sidebar for the fraud research app
-    and return the selected focus option plus insight preference.
-    """
-    with st.sidebar:
-        st.header("🎯 Fraud Research Controls")
+    """Render quick-pick fraud topics as buttons above the search bar."""
+    st.markdown("#### Choose a fraud topic")
 
-        labels = [label for label, _ in FOCUS_OPTIONS]
-        default_index = 0
-        focus_label = st.selectbox(
-            "Choose a fraud focus type:",
-            labels,
-            index=default_index,
-            help="Select the fraud theme you want to explore.",
-        )
-        preset_query = dict(FOCUS_OPTIONS).get(focus_label, "")
+    focus_label = "None"
+    preset_query = ""
+    run_now = False
 
-        # --- Quick Insight Prompts ---
-        st.markdown("### 💡 Quick Insights")
-        insight_choice = st.radio(
-            "Focus the summary on:",
-            [
-                "Trends and patterns over time",
-                "Emerging risk areas",
-                "Policy and regulatory tone",
-                "Consumer or institutional impact",
-            ],
-            index=0,
-            help="Select the analytical focus for the OpenAI summary.",
-        )
+    cols = st.columns(4)
+    for idx, (label, query) in enumerate(FOCUS_OPTIONS):
+        with cols[idx % 4]:
+            if st.button(label, key=f"topic_{idx}"):
+                focus_label = label
+                preset_query = query
+                run_now = True
 
-        st.markdown("---")
-        st.caption("Pick a fraud focus to guide semantic storytelling.")
-
-    return focus_label, preset_query, insight_choice
+    st.caption("Click a topic to prefill and run search, or type your own question below.")
+    return focus_label, preset_query, run_now

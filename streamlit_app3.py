@@ -263,9 +263,40 @@ st.set_page_config(page_title="USAA Semantic Search", layout="wide")
 display_usaa_logo()
 st.title("Financial Compliance Insight System")
 
-focus_label, preset_query, insight_choice = sidebar_controls()
-default_query = preset_query or ""
-st.info("Enter a query (or choose a fraud focus in the sidebar), then click **Search**.")
+# Global background styling (no f-string to avoid brace conflicts)
+st.markdown(
+    """
+    <style>
+    .stApp {
+        background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)),
+            url('https://pmodncflpdtjfztlrsik.supabase.co/storage/v1/object/public/banners/backgroundUSAA.png');
+        background-size: cover;
+        background-repeat: no-repeat;
+        background-color: #0b1c2c;
+        background-position: center center;
+        background-attachment: fixed;
+        color: #f5f7fa;
+        min-height: 100vh;
+    }
+    /* Improve contrast on inputs/buttons */
+    .stTextInput > div > div > input,
+    .stTextArea > div > textarea {
+        background-color: rgba(0, 0, 0, 0.35);
+        color: #f5f7fa;
+        border: 1px solid #0f2d45;
+    }
+    .stButton > button {
+        border: 1px solid #0f2d45;
+        color: #ffffff;
+        background-color: #0b1c2c;
+    }
+    .stDownloadButton > button {
+        border: 1px solid #0f2d45;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # -----------------
 # Fetch Articles (Cached Index)
@@ -303,16 +334,26 @@ else:
 # -----------------
 st.markdown("### ⚙️ Semantic Exploration & Insight Engine")
 
+focus_label, preset_query, run_now = sidebar_controls()
+if preset_query:
+    st.session_state["query_sentence"] = preset_query
+
+default_query = st.session_state.get("query_sentence", "")
+
 query_sentence = st.text_input(
     "Enter a question or sentence to explore:",
     value=default_query,
     placeholder="e.g., How are banks addressing AML and third-party risks?"
 )
-run_semantic = st.button("Run Semantic Search")
+if run_now and preset_query:
+    query_sentence = preset_query
+run_semantic = st.button("Run Semantic Search") or run_now
+if run_now and focus_label:
+    st.info(f"Running search for **{focus_label}** … please wait.")
 
 if run_semantic and query_sentence.strip():
     agent_steps = []
-    focus_hint = focus_label if focus_label != "— none —" else ""
+    focus_hint = focus_label if focus_label and focus_label.lower() != "none" else ""
     if retrieval_agent:
         agent_result = retrieval_agent.retrieve(query_sentence, focus_hint)
         agent_steps = agent_result.steps
@@ -377,7 +418,7 @@ if run_semantic and query_sentence.strip():
         # -----------------------------
         st.divider()
         st.markdown("### 🔭 Topic Visual Studio")
-        focus_hint = focus_label if focus_label != "— none —" else ""
+        focus_hint = focus_label if focus_label and focus_label.lower() != "none" else ""
         focus_phrase = infer_focus_phrase(query_sentence, focus_hint, [], df)
 
         if not focus_phrase:
@@ -636,63 +677,19 @@ if run_semantic and query_sentence.strip():
                 else:
                     st.info("No trend statements could be generated.")
 
-                st.subheader("Stakeholder Briefing & Exports")
-                briefing_lines = build_stakeholder_brief(stats, sources, ts, focus_phrase)
-                if briefing_lines:
-                    for line in briefing_lines:
-                        st.markdown(line)
-                else:
-                    st.info("Not enough signal to generate stakeholder-ready talking points.")
-
-                summary_md = "\n".join(
-                    [
-                        f"# Stakeholder Brief — {focus_phrase}",
-                        f"*Generated {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}*",
-                        "",
-                        *[line.replace("- ", "* ", 1) for line in briefing_lines],
-                        "",
-                        "## Focus Keywords",
-                        *[
-                            f"* `{entry.get('term')}` — sources: {', '.join(entry.get('supporting_titles') or [])}"
-                            for entry in keyword_display_items
-                            if entry.get("term")
-                        ],
-                        "",
-                        "## Trend Highlights",
-                        *[
-                            f"* **{entry.get('headline','Trend')}** — {entry.get('summary', '')}"
-                            for entry in trend_display_items
-                        ],
-                        "",
-                        "Data source: USAA Fraud Research Dashboard",
-                    ]
-                )
                 csv_content = ""
                 if not articles_subset.empty:
                     csv_buffer = StringIO()
                     articles_subset.to_csv(csv_buffer, index=False)
                     csv_content = csv_buffer.getvalue()
 
-                dl1, dl2 = st.columns(2)
-                with dl1:
-                    st.download_button(
-                        "⬇️ Download Topic Articles (CSV)",
-                        data=csv_content or "title,source,similarity\n",
-                        file_name=f"{focus_phrase.lower().replace(' ', '_')}_articles.csv",
-                        mime="text/csv",
-                        disabled=not csv_content,
-                    )
-                with dl2:
-                    st.download_button(
-                        "⬇️ Download Stakeholder Brief (Markdown)",
-                        data=summary_md,
-                        file_name=f"{focus_phrase.lower().replace(' ', '_')}_brief.md",
-                        mime="text/markdown",
-                        disabled=not briefing_lines,
-                    )
-else:
-    st.info("Enter a query and click **Run Semantic Search** to begin.")
-
+                st.download_button(
+                    "⬇️ Download Topic Articles (CSV)",
+                    data=csv_content or "title,source,similarity\n",
+                    file_name=f"{focus_phrase.lower().replace(' ', '_')}_articles.csv",
+                    mime="text/csv",
+                    disabled=not csv_content,
+                )
 # -----------------
 # Library Viewer Integration
 # -----------------
