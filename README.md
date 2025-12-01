@@ -16,6 +16,13 @@ Automated ETL, embeddings, and storytelling dashboards that highlight emerging c
 | Create environment | ```bash\nuv venv .venv\nsource .venv/bin/activate\nuv sync\n``` |
 | Launch dashboard | ```bash\nuv run streamlit run streamlit_app3.py\n``` |
 
+## Deploy to Modal (Streamlit)
+- Install CLI: `uv tool install modal` (or `pip install modal` inside your venv).
+- Create/update secret (from your `.env`):  
+  `set -a && source .env && modal secret create fruad_detection SUPABASE_URL=\"$SUPABASE_URL\" SUPABASE_KEY=\"$SUPABASE_KEY\" OPENAI_API_KEY=\"$OPENAI_API_KEY\" OPENAI_TRENDS_MODEL=\"${OPENAI_TRENDS_MODEL:-gpt-4o-mini}\"`
+- Deploy from repo root: `modal deploy modal_app.py`
+- Open the URL shown after cold start (Modal will proxy port 8501).
+
 ### Required Environment Variables
 | Key | Purpose | Example |
 | --- | --- | --- |
