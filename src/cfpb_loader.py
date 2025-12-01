@@ -3,6 +3,7 @@ cfpb_loader.py
 ---------------------------------
 Loads pre-classified CFPB consumer complaints from Supabase.
 Used by Streamlit dashboard and fraud_insights.py to merge with articles.
+
 """
 
 import os
