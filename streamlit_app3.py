@@ -24,7 +24,6 @@ from supabase import create_client
 # -------------------------------
 from src.sidebar_controls import sidebar_controls
 from src.library_viewer import render_library_viewer
-from src.usaa_logo import display_usaa_logo
 from src.ai.agentic_tool import AgenticRetriever
 from src.ai.fraud_insights import generate_fraud_insights
 from src.ai.article_preprocessing import prepare_articles_for_ai
@@ -35,6 +34,7 @@ from src.topic_keyword_utils import (
     build_state_heatmap_data,
 )
 from src.article_index import ArticleIndex
+from src.semantic_library import save_semantic_library
 
 
 def format_apa_citation(row: dict) -> str:
@@ -259,9 +259,8 @@ openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 # -----------------
 # Initialization
 # -----------------
-st.set_page_config(page_title="USAA Semantic Search", layout="wide")
-display_usaa_logo()
-st.title("Financial Compliance Insight System")
+st.set_page_config(page_title="USAA Fraud Insights & Library Builder", layout="wide")
+st.title("State of Fraud & Library Builder")
 
 # Global background styling (no f-string to avoid brace conflicts)
 st.markdown(
@@ -269,12 +268,13 @@ st.markdown(
     <style>
     .stApp {
         background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.65)),
-            url('https://pmodncflpdtjfztlrsik.supabase.co/storage/v1/object/public/banners/backgroundUSAA.png');
-        background-size: cover;
-        background-repeat: no-repeat;
+            url('https://pmodncflpdtjfztlrsik.supabase.co/storage/v1/object/public/banners/USAA-United-Services-Automobile-Association-Logo.png');
+        /* Gradient spans full page; image constrained to avoid upscaling */
+        background-size: cover, 70vw auto;
+        background-repeat: no-repeat, no-repeat;
         background-color: #0b1c2c;
-        background-position: center center;
-        background-attachment: fixed;
+        background-position: center center, center 10vh;
+        background-attachment: fixed, fixed;
         color: #f5f7fa;
         min-height: 100vh;
     }
@@ -329,11 +329,6 @@ if complaints_df.empty:
 else:
     st.success(f"✅ Loaded {len(complaints_df)} classified CFPB complaints.")
 
-# -----------------
-# SEMANTIC + INSIGHT ENGINE
-# -----------------
-st.markdown("### ⚙️ Semantic Exploration & Insight Engine")
-
 focus_label, preset_query, run_now = sidebar_controls()
 if preset_query:
     st.session_state["query_sentence"] = preset_query
@@ -347,7 +342,7 @@ query_sentence = st.text_input(
 )
 if run_now and preset_query:
     query_sentence = preset_query
-run_semantic = st.button("Run Semantic Search") or run_now
+run_semantic = st.button("Search Insights") or run_now
 if run_now and focus_label:
     st.info(f"Running search for **{focus_label}** … please wait.")
 
@@ -690,6 +685,24 @@ if run_semantic and query_sentence.strip():
                     mime="text/csv",
                     disabled=not csv_content,
                 )
+
+                # Save to Semantic Library (Supabase)
+                save_key = f"save_library_{focus_phrase}"
+                if st.button("💾 Save to Library", key=save_key, disabled=articles_subset.empty):
+                    try:
+                        inserted = save_semantic_library(
+                            topic=focus_phrase,
+                            query=query_sentence,
+                            articles_df=articles_subset,
+                            similarities=articles_subset.get("similarity", []),
+                            avoid_duplicates=True,
+                        )
+                        if inserted:
+                            st.success(f"Saved {inserted} articles to the library for '{focus_phrase}'.")
+                        else:
+                            st.info("No articles were saved (possible duplicates or missing data).")
+                    except Exception as exc:
+                        st.error(f"Unable to save to library: {exc}")
 # -----------------
 # Library Viewer Integration
 # -----------------
