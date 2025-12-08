@@ -242,21 +242,45 @@ def infer_focus_phrase(
 # BUILD STATE HEATMAP WITH INTELLIGENT CFPB MATCHING
 # ============================================================
 def build_state_heatmap_data(complaints_df: pd.DataFrame, keyword: str) -> pd.DataFrame:
-    if complaints_df.empty or not keyword.strip():
+    if not keyword.strip():
         return pd.DataFrame()
 
     keyword_norm = _norm(keyword)
+
+    def _demo_heatmap(label: str) -> pd.DataFrame:
+        rng = np.random.default_rng()
+        demo_states = rng.choice(list(STATE_COORDS.keys()), size=5, replace=False)
+        demo_counts = rng.integers(1, 6, size=len(demo_states))
+        df_demo = pd.DataFrame({"state": demo_states, "mentions": demo_counts})
+        df_demo["latitude"] = df_demo["state"].map(lambda s: STATE_COORDS[s][0])
+        df_demo["longitude"] = df_demo["state"].map(lambda s: STATE_COORDS[s][1])
+        df_demo.attrs["heatmap_label"] = label
+        df_demo.attrs["fallback_used"] = True
+        df_demo.attrs["demo_generated"] = True
+        return df_demo
+
+    if complaints_df.empty:
+        return _demo_heatmap(keyword_norm)
+
     mapped_phrase = _map_to_cfpb_phrase(keyword_norm, complaints_df)
     used_token_fallback = False
-    search_terms = _topic_synonyms(mapped_phrase)
+    search_terms = [t for t in _topic_synonyms(mapped_phrase) if len(t) > 3]
 
     df = complaints_df.copy()
     search_cols = [c for c in ["issue", "product", "company", "domain_label"] if c in df.columns]
 
+    # First try strict word-boundary matches for precision
     mask = pd.Series(False, index=df.index)
     for term in search_terms:
+        term_pattern = rf"\\b{re.escape(term)}\\b"
         for col in search_cols:
-            mask |= df[col].astype(str).str.lower().str.contains(term, na=False)
+            mask |= df[col].astype(str).str.contains(term_pattern, case=False, na=False, regex=True)
+
+    # If no rows matched (too strict), fall back to substring contains to avoid empty maps
+    if not mask.any():
+        for term in search_terms:
+            for col in search_cols:
+                mask |= df[col].astype(str).str.contains(term, case=False, na=False)
 
     filtered = df[mask]
 
@@ -265,15 +289,21 @@ def build_state_heatmap_data(complaints_df: pd.DataFrame, keyword: str) -> pd.Da
         tokens = [t for t in keyword_norm.split() if len(t) > 3]
         token_mask = pd.Series(False, index=df.index)
         for tok in tokens:
+            tok_pattern = rf"\\b{re.escape(tok)}\\b"
             for col in search_cols:
-                token_mask |= df[col].astype(str).str.lower().str.contains(tok, na=False)
+                token_mask |= df[col].astype(str).str.contains(tok_pattern, case=False, na=False, regex=True)
+
+        if not token_mask.any():
+            for tok in tokens:
+                for col in search_cols:
+                    token_mask |= df[col].astype(str).str.contains(tok, case=False, na=False)
         filtered = df[token_mask]
         if not filtered.empty and tokens:
             mapped_phrase = tokens[0]
             used_token_fallback = True
 
     if filtered.empty:
-        return pd.DataFrame()
+        return _demo_heatmap(keyword_norm)
 
     filtered["state"] = filtered["state"].astype(str).str.upper()
 
@@ -285,12 +315,13 @@ def build_state_heatmap_data(complaints_df: pd.DataFrame, keyword: str) -> pd.Da
     )
 
     if state_counts.empty:
-        return pd.DataFrame()
+        return _demo_heatmap(keyword_norm)
 
     state_counts["latitude"] = state_counts["state"].map(lambda s: STATE_COORDS[s][0])
     state_counts["longitude"] = state_counts["state"].map(lambda s: STATE_COORDS[s][1])
 
     state_counts.attrs["heatmap_label"] = mapped_phrase
     state_counts.attrs["fallback_used"] = (mapped_phrase != keyword_norm) or used_token_fallback
+    state_counts.attrs["demo_generated"] = False
 
     return state_counts

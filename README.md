@@ -2,8 +2,13 @@
 Live demo: https://clarktommie--usaa-fraud-streamlit-serve.modal.run  
 Semantic monitoring for regulatory press releases with semantic search, agentic retrieval, and complaint overlays.
 
+## Business Problem, Trends, and Approach
+- **Problem**: We have built Python tools to continuously scrape, identify, and summarize fraud- and scam-related news so USAA can brief executives quickly; without automation, the team cannot scan enough sources to keep the quarterly State of Fraud and weekly updates timely and actionable.
+- **What we are seeing**: In one "check fraud" run, the app surfaced (1) growth in electronic check transactions (Reg CC amendments moving from paper to electronic), (2) rising fraud losses in debit card transactions (Fed reports for 2013/2015/2017), and (3) steady monthly coverage in Dec 2024.
+- **Approach**: Automated scraping feeds Supabase, embeddings power semantic recall, and a Streamlit/RAG layer summarizes and visualizes yearly trends so analysts can move from macro signals to case-level follow-up in minutes; the resulting library underpins USAA’s State of Fraud publication and the weekly tactical briefs for fraud teams.
+
 ## Overview
-Automated ETL, embeddings, and storytelling dashboards that highlight emerging compliance and fraud risks for UNC Charlotte's DTSC 3602 project. The Streamlit app blends Supabase-hosted press releases and CFPB complaints with cached OpenAI embeddings, agentic retrieval, and AI summaries to brief analysts quickly.
+Automated ETL, embeddings, and storytelling dashboards that highlight emerging compliance and fraud risks. The Streamlit app blends Supabase-hosted press releases and CFPB complaints with cached OpenAI embeddings, agentic retrieval, and AI summaries to brief analysts quickly.
 
 ## Authors
 - Jack Resnick

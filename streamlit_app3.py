@@ -521,33 +521,6 @@ if run_semantic and query_sentence.strip():
                 else:
                     col_src.info("Source information unavailable for this topic.")
 
-                if not keyword_chart_df.empty:
-                    keyword_view = keyword_chart_df.head(15).copy()
-                    keyword_chart = (
-                        alt.Chart(keyword_view)
-                        .mark_bar()
-                        .encode(
-                            x=alt.X("score:Q", title="Keyword weight"),
-                            y=alt.Y("term:N", sort="-x", title="Keyword"),
-                            color=alt.Color("score:Q", scale=alt.Scale(scheme="teals"), legend=None),
-                            tooltip=[
-                                alt.Tooltip("term:N", title="Keyword"),
-                                alt.Tooltip("score:Q", format=".3f", title="Weight"),
-                            ],
-                        )
-                        .properties(height=380)
-                    )
-                    st.altair_chart(keyword_chart, use_container_width=True)
-                    chips = " · ".join(f"`{term}`" for term in keyword_view["term"].head(6).tolist())
-                    if chips:
-                        st.caption(f"Focus keywords: {chips}")
-                    if ai_keywords_raw:
-                        st.caption("Keywords derived from evidence-backed LLM summaries.")
-                    else:
-                        st.caption("Keywords generated from TF-IDF weighting within matched articles.")
-                else:
-                    st.info("Not enough content to extract meaningful keywords.")
-
                 if not projection.empty:
                     scatter_data = projection.copy()
                     scatter_data["date"] = pd.to_datetime(scatter_data.get("date"), errors="coerce")
@@ -578,7 +551,9 @@ if run_semantic and query_sentence.strip():
                 if not state_map.empty:
                     st.subheader("Complaint Hotspots")
                     heatmap_label = state_map.attrs.get("heatmap_label")
-                    if state_map.attrs.get("fallback_used") and heatmap_label:
+                    if state_map.attrs.get("demo_generated"):
+                        st.caption("Showing randomized demo hotspots (no matching complaints found for this focus term).")
+                    elif state_map.attrs.get("fallback_used") and heatmap_label:
                         st.caption(f"Using closest complaint category match: `{heatmap_label}`.")
                     elif heatmap_label and heatmap_label.lower() != focus_phrase.lower():
                         st.caption(f"Matched complaint category: `{heatmap_label}`.")
@@ -630,7 +605,12 @@ if run_semantic and query_sentence.strip():
                     ai_trend_items = (ai_trends.get("trends") or [])[:3]
                     ai_error = ai_trends.get("error")
                 keyword_display_items = ai_keywords if ai_keywords else fallback_keywords
-                trend_display_items = ai_trend_items if ai_trend_items else fallback_trend_items
+                trend_display_items = ai_trend_items if ai_trend_items else []
+                if len(trend_display_items) < 3 and fallback_trend_items:
+                    for item in fallback_trend_items:
+                        if len(trend_display_items) >= 3:
+                            break
+                        trend_display_items.append(item)
 
                 st.subheader("Keywords & Trend Highlights")
                 if ai_error:
