@@ -3,9 +3,36 @@ Live demo: https://clarktommie--usaa-fraud-streamlit-serve.modal.run
 Semantic monitoring for regulatory press releases with semantic search, agentic retrieval, and complaint overlays.
 
 ## Business Problem, Trends, and Approach
-- **Problem**: We have built Python tools to continuously scrape, identify, and summarize fraud- and scam-related news so USAA can brief executives quickly; without automation, the team cannot scan enough sources to keep the quarterly State of Fraud and weekly updates timely and actionable.
-- **What we are seeing**: In one "check fraud" run, the app surfaced (1) growth in electronic check transactions (Reg CC amendments moving from paper to electronic), (2) rising fraud losses in debit card transactions (Fed reports for 2013/2015/2017), and (3) steady monthly coverage in Dec 2024.
-- **Approach**: Automated scraping feeds Supabase, embeddings power semantic recall, and a Streamlit/RAG layer summarizes and visualizes yearly trends so analysts can move from macro signals to case-level follow-up in minutes; the resulting library underpins USAA’s State of Fraud publication and the weekly tactical briefs for fraud teams.
+
+### **Business Problem**
+USAA fraud analysts need a faster way to monitor **Federal Reserve press releases** and **CFPB consumer-complaint data** for fraud, compliance, and risk trends. Manually reviewing large volumes of regulatory content is slow and difficult to scale.  
+This project automates ingestion, enrichment, and summarization so analysts can identify emerging fraud patterns within minutes.
+
+---
+
+### **What We Are Seeing**
+Across multiple evaluations, the dashboard has surfaced consistent patterns:
+
+- **Recurring fraud themes** — identity theft, deposit account fraud, unauthorized transfers, elder-financial abuse, wire-transfer scams, and more.  
+- **Loss mentions** — when enforcement actions or press releases include explicit penalties, restitution, or fine amounts, the AI module can extract those values **when directly relevant to the user’s query**, but it does not compute or aggregate totals on its own.  
+- **Complaint clustering** — CFPB data shows concentration in issues like mortgage disputes, credit-reporting errors, and unauthorized transactions, with certain states consistently showing higher complaint volumes.  
+- **Temporal signals** — clear monthly and yearly shifts in both press-release topics and consumer-complaint activity.
+
+These observations come from the system’s semantic search, topic classification, and selective loss-extraction processes.
+
+---
+
+### **Approach**
+The system uses an automated, end-to-end pipeline:
+
+1. **Scrapers** collect Federal Reserve press releases and CFPB complaint records (robots.txt compliant).  
+2. **Supabase** stores raw, cleaned, and embedded versions of each document for fast semantic retrieval.  
+3. **Embeddings + RAG** match user queries to the most relevant enforcement actions, complaint narratives, and fraud topics.  
+4. **AI reasoning modules** summarize documents, classify topics, detect patterns, and extract monetary losses *when explicitly stated* in the text.  
+5. **Streamlit dashboard** visualizes trends across time, topics, and geographies, enabling analysts to move quickly from macro-level signals to actionable insights.
+
+This workflow supports USAA’s **State of Fraud** research process and the **weekly tactical briefs** used by internal fraud-intelligence teams.
+
 
 ## Overview
 Automated ETL, embeddings, and storytelling dashboards that highlight emerging compliance and fraud risks. The Streamlit app blends Supabase-hosted press releases and CFPB complaints with cached OpenAI embeddings, agentic retrieval, and AI summaries to brief analysts quickly.
