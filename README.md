@@ -1,9 +1,9 @@
-# USAA Fraud Detection
-Live demo: https://clarktommie--usaa-fraud-streamlit-serve.modal.run
-Semantic monitoring for regulatory press releases
+# USAA Fraud Detection & Semantic Library
+Live demo: https://clarktommie--usaa-fraud-streamlit-serve.modal.run  
+Semantic monitoring for regulatory press releases with semantic search, agentic retrieval, and complaint overlays.
 
 ## Overview
-Automated ETL, embeddings, and storytelling dashboards that highlight emerging compliance and fraud risks for UNC Charlotte's DTSC 3602 project.
+Automated ETL, embeddings, and storytelling dashboards that highlight emerging compliance and fraud risks for UNC Charlotte's DTSC 3602 project. The Streamlit app blends Supabase-hosted press releases and CFPB complaints with cached OpenAI embeddings, agentic retrieval, and AI summaries to brief analysts quickly.
 
 ## Authors
 - Jack Resnick
@@ -15,45 +15,57 @@ Automated ETL, embeddings, and storytelling dashboards that highlight emerging c
 | Step | Command |
 | --- | --- |
 | Create environment | ```bash\nuv venv .venv\nsource .venv/bin/activate\nuv sync\n``` |
-| Launch dashboard | ```bash\nuv run streamlit run streamlit_app3.py\n``` |
+| Run locally | ```bash\nuv run streamlit run streamlit_app3.py\n``` |
+
+Notes:
+- On first run, the app builds `data/cache/article_embeddings.npz` and `article_metadata.pkl` from Supabase. Use the sidebar "Refresh Article Cache" button to rebuild.
+- The UI also fetches CFPB complaints on startup; missing tables will show warnings in the app.
 
 ## Deploy to Modal (Streamlit)
 - Install CLI: `uv tool install modal` (or `pip install modal` inside your venv).
-- Create a Modal secret containing SUPABASE_URL, SUPABASE_KEY, and OPENAI_API_KEY (name it to match `modal_app.py`).
+- Create a Modal secret **named exactly `fruad_detection`** containing `SUPABASE_URL`, `SUPABASE_KEY`, and `OPENAI_API_KEY` (plus optional `OPENAI_TRENDS_MODEL`).
 - Deploy from repo root: `modal deploy modal_app.py`
-- Open the URL shown after cold start (Modal proxies port 8501).
+- Optional local test via Modal: `modal run modal_app.py::main`
+- Modal mounts a persistent volume `usaa-fraud-cache` to `/root/app/data` so embedding caches survive warm restarts; the web server proxies Streamlit on port 8501.
 
 ### Required Environment Variables
-Add these to a `.env` file (no examples shown; keep your values private):
+Add these to a `.env` file (keep values private):
 ```
 SUPABASE_URL=...
 SUPABASE_KEY=...
 OPENAI_API_KEY=...
+# optional
+OPENAI_TRENDS_MODEL=gpt-4o-mini
+ARTICLE_INDEX_TTL_HOURS=12
 ```
+
+Supabase tables expected:
+- `press_releases_clean`: `id, title, content, source, date, url, embedding`
+- `cfpb_complaints`: `complaint_id, date_received, product, issue, state, company, domain_label, similarity_score`
+- `library`: created automatically when saving topics from the app.
 
 ## Project Snapshot
 - One-click UV setup, scripted scraper, and Streamlit UI for compliance intelligence.
-- Supabase stores structured press releases from Federal Reserve and CFPB plus OpenAI embeddings for semantic recall.
+- Supabase stores structured press releases plus OpenAI embeddings for semantic recall; cached locally via `ArticleIndex`.
 - Storytelling view surfaces focus terms, multi-year trends, and GPT-generated insights for analysts.
 - Agentic retrieval broadens or retries searches automatically so analysts get enough context.
 - Full Retrieval-Augmented Generation (RAG) loop: retrieve context via embeddings, then generate OpenAI summaries.
+- CFPB complaint overlay maps complaint hotspots against the selected focus phrase.
 
 ### Why It Matters
-- Unified fraud intelligence workspace that links data, embeddings, and AI summaries.
+- Unified fraud intelligence workspace linking data, embeddings, and AI summaries.
 - Actionable compliance insights that highlight regulatory concerns for remediation and training.
-- Reusable pipeline that can be adapted to other institutions with minimal change.
+- Reusable pipeline adaptable to other institutions with minimal change.
 
 ### Visual Overview
-![Streamlit Dashboard](images/streamlit_dashboard.png)
+![Streamlit Dashboard](images/streamlit_dashboard.png)  
 Streamlit application (`streamlit_app3.py`) highlighting focus-word filters, yearly trend chart, and article summaries.
 
 ### Folder Structure
 ```
 .
 ├── data/
-│   └── cache/
-│       ├── article_embeddings.npz
-│       └── article_metadata.pkl
+│   └── cache/                     # Embedding + metadata cache built at runtime
 ├── images/
 │   ├── streamlit_dashboard.png
 │   ├── dashboard_demo.gif
@@ -66,16 +78,15 @@ Streamlit application (`streamlit_app3.py`) highlighting focus-word filters, yea
 │   └── USAA_Fraud_Detection_Project_Timeline.pdf
 ├── src/
 │   ├── ai/
+│   │   ├── agentic_tool.py
 │   │   ├── article_preprocessing.py
-│   │   ├── complaint_preprocessing.py
 │   │   ├── fraud_insights.py
 │   │   └── query_filter.py
-│   ├── article_index.py
-│   ├── cfpb_loader.py
-│   ├── data_loader.py
-│   ├── library_viewer.py
-│   ├── openai_summary.py
-│   ├── semantic_library.py
+│   ├── article_index.py           # Cached embedding index builder/search
+│   ├── cfpb_loader.py             # CFPB complaints loader (Supabase)
+│   ├── data_loader.py             # Press release loader (Supabase)
+│   ├── library_viewer.py          # Streamlit library browser
+│   ├── semantic_library.py        # Save/retrieve library entries
 │   ├── sidebar_controls.py
 │   ├── topic_keyword_utils.py
 │   ├── topic_visuals.py
@@ -83,6 +94,7 @@ Streamlit application (`streamlit_app3.py`) highlighting focus-word filters, yea
 │   ├── universal_scraper_outer.py
 │   └── usaa_logo.py
 ├── streamlit_app3.py
+├── modal_app.py
 ├── README.md
 └── pyproject.toml
 ```
@@ -158,15 +170,6 @@ This minimal example mirrors `streamlit_app3.py`: cached Supabase data drives in
 - Yearly trend visualization tied to the selected focus word.
 - GPT-based summarization for narrative context.
 - Library system to curate compliance topic groups, with a semantic viewer that can be tuned in the UI to search more or fewer related articles.
-
-## Tech Stack
-- Python 3.12
-- Streamlit
-- Supabase (Postgres and vector store)
-- OpenAI GPT and embeddings
-- Pandas and Matplotlib
-- BeautifulSoup4, Requests, PyPDF2
-- uv for environment and execution management
 
 ## Findings and Impact
 | Insight | Why it matters | Visual |
